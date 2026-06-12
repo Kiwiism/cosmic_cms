@@ -43,7 +43,7 @@ public class LootCommand extends Command {
         List<MapObject> items = c.getPlayer().getMap().getMapObjectsInRange(c.getPlayer().getPosition(), Double.POSITIVE_INFINITY, Arrays.asList(MapObjectType.ITEM));
         for (MapObject item : items) {
             MapItem mapItem = (MapItem) item;
-            if (mapItem.getOwnerId() == c.getPlayer().getId() || mapItem.getOwnerId() == c.getPlayer().getPartyId()) {
+            if (mapItem.getOwnerId() == c.getPlayer().getId()) {
                 c.getPlayer().pickupItem(mapItem);
             }
         }

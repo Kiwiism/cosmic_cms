@@ -39,7 +39,7 @@ public class ClearSlotCommand extends Command {
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !clearslot <all, equip, use, setup, etc or cash.>");
+            player.yellowMessage("Syntax: !clearinventory <all, equip, use, setup, etc or cash.>");
             return;
         }
         String type = params[0];

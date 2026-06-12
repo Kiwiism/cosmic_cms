@@ -27,7 +27,7 @@
  * @Purpose:     Levels people up.
  */
 function start() {
-    if (cm.getPlayer().gmLevel() > 1) {
+    if (cm.getPlayer().isGM()) {
         cm.sendYesNo("Do you want to level up?");
     } else {
         cm.sendOk("Hey wassup?");
@@ -35,7 +35,7 @@ function start() {
 }
 
 function action(i, am, pro) {
-    if (i > 0 && cm.getPlayer().gmLevel() > 1) {
+    if (i > 0 && cm.getPlayer().isGM()) {
         cm.getPlayer().levelUp(true);
     }
     cm.dispose();

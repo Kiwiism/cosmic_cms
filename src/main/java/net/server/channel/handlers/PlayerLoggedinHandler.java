@@ -173,6 +173,9 @@ public final class PlayerLoggedinHandler extends AbstractPacketHandler {
             }
             c.setPlayer(player);
             c.setAccID(player.getAccountID());
+            // Character permissions are world-specific. Do not retain the account-wide
+            // maximum GM level that was used while displaying the login character list.
+            c.setGMLevel(player.gmLevel());
 
             boolean allowLogin = true;
 

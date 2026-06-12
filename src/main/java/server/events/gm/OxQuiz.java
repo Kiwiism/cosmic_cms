@@ -63,7 +63,7 @@ public final class OxQuiz {
     public void sendQuestion() {
         int gm = 0;
         for (Character mc : map.getCharacters()) {
-            if (mc.gmLevel() > 1) {
+            if (mc.isGM()) {
                 gm++;
             }
         }

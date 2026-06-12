@@ -46,7 +46,7 @@ public class PmobCommand extends Command {
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !pmob <mobid> [<mobtime>]");
+            player.yellowMessage("Syntax: !spawnpersistentmob <mobid> [<mobtime>]");
             return;
         }
 

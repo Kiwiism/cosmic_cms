@@ -89,7 +89,7 @@ public class IdCommand extends Command {
     public void execute(Client client, final String[] params) {
         final Character chr = client.getPlayer();
         if (params.length < 2) {
-            chr.yellowMessage("Syntax: !id <type> <query>");
+            chr.yellowMessage("Syntax: !idsearch <type> <query>");
             return;
         }
         final String type = params[0].toLowerCase();

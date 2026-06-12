@@ -125,7 +125,7 @@ function action(mode, type, selection) {
                         }
                     }
 
-                    if (playersOnCombo == 5 || cm.getPlayer().gmLevel() > 1) {
+                    if (playersOnCombo == 5 || cm.getPlayer().isGM()) {
                         var comboStr = eim.getProperty("stage" + stage + "combo");
                         if (comboStr == null) {
                             comboStr = generateCombo();
@@ -140,7 +140,7 @@ function action(mode, type, selection) {
                                 correctCombo = false;
                             }
                         }
-                        if (correctCombo || cm.getPlayer().gmLevel() > 1) {
+                        if (correctCombo || cm.getPlayer().isGM()) {
                             eim.setProperty("statusStg" + stage, 1);
                             clearStage(stage, eim, curMap);
                             cm.dispose();

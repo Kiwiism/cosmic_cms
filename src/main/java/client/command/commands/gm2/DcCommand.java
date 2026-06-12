@@ -36,7 +36,7 @@ public class DcCommand extends Command {
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !dc <playername>");
+            player.yellowMessage("Syntax: !disconnect <playername>");
             return;
         }
 

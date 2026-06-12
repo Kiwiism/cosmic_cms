@@ -25,18 +25,22 @@ package client.command.commands.gm2;
 
 import client.Character;
 import client.Client;
-import client.SkillFactory;
 import client.command.Command;
 
 public class HideCommand extends Command {
     {
-        setDescription("Hide from players.");
+        setDescription("Hide from non-staff players.");
     }
 
     @Override
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
-        SkillFactory.getSkill(9101004).getEffect(SkillFactory.getSkill(9101004).getMaxLevel()).applyTo(player);
+        if (player.isHidden()) {
+            player.yellowMessage("You are already hidden.");
+            return;
+        }
 
+        player.Hide(true);
+        player.yellowMessage("You are now hidden from non-staff players.");
     }
 }

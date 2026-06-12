@@ -4,154 +4,154 @@
 worlds:
     #Properties for Scania 0
   - flag: 0
-    server_message: Welcome to Scania!
+    server_message: ""
     event_message: Scania!
     why_am_i_recommended: Welcome to Scania!
-    channels: 3
-    exp_rate: 10
-    meso_rate: 10
-    drop_rate: 10
-    boss_drop_rate: 10                      #NOTE: Boss drop rate OVERRIDES common drop rate, for bosses-only.
-    quest_rate: 5                           #Multiplier for Exp & Meso gains when completing a quest. Only available when USE_QUEST_RATE is true. Stacks with server Exp & Meso rates.
-    fishing_rate: 10                        #Multiplier for success likelihood on meso thrown during fishing.
+    channels: 1
+    exp_rate: 1
+    meso_rate: 1
+    drop_rate: 1
+    boss_drop_rate: 1                       #NOTE: Boss drop rate OVERRIDES common drop rate, for bosses-only.
+    quest_rate: 1                           #Multiplier for Exp & Meso gains when completing a quest. Only available when USE_QUEST_RATE is true. Stacks with server Exp & Meso rates.
+    fishing_rate: 1                         #Multiplier for success likelihood on meso thrown during fishing.
     travel_rate: 10                         #Means of transportation rides/departs using 1/N of the default time.
 
     #Properties for Bera 1
   - flag: 0
-    server_message: Welcome to Bera!
+    server_message: ""
     event_message: Bera!
     why_am_i_recommended: Welcome to Bera!
     channels: 3
 
     #Properties for Broa 2
   - flag: 0
-    server_message: Welcome to Broa!
+    server_message: ""
     event_message: Broa!
     why_am_i_recommended: Welcome to Broa!
     channels: 3
 
     #Properties for Windia 3
   - flag: 0
-    server_message: Welcome to Windia!
+    server_message: ""
     event_message: Windia!
     why_am_i_recommended: Welcome to Windia!
     channels: 3
 
     #Properties for Khaini 4
   - flag: 0
-    server_message: Welcome to Khaini!
+    server_message: ""
     event_message: Khaini!
     why_am_i_recommended: Welcome to Khaini!
     channels: 3
 
     #Properties for Bellocan 5
   - flag: 0
-    server_message: Welcome to Bellocan!
+    server_message: ""
     event_message: Bellocan!
     why_am_i_recommended: Welcome to Bellocan!
     channels: 3
 
     #Properties for Mardia 6
   - flag: 0
-    server_message: Welcome to Mardia!
+    server_message: ""
     event_message: Mardia!
     why_am_i_recommended: Welcome to Mardia!
     channels: 3
 
     #Properties for Kradia 7
   - flag: 0
-    server_message: Welcome to Kradia!
+    server_message: ""
     event_message: Kradia!
     why_am_i_recommended: Welcome to Kradia!
     channels: 3
 
     #Properties for Yellonde 8
   - flag: 0
-    server_message: Welcome to Yellonde!
+    server_message: ""
     event_message: Yellonde!
     why_am_i_recommended: Welcome to Yellonde!
     channels: 3
 
     #Properties for Demethos 9
   - flag: 0
-    server_message: Welcome to Demethos!
+    server_message: ""
     event_message: Demethos!
     why_am_i_recommended: Welcome to Demethos!
     channels: 3
 
     #Properties for Galicia 10
   - flag: 0
-    server_message: Welcome to Galicia!
+    server_message: ""
     event_message: Galicia!
     why_am_i_recommended: Welcome to Galicia!
     channels: 3
 
     #Properties for Kastia 11
   - flag: 0
-    server_message: Welcome to Kastia!
+    server_message: ""
     event_message: Kastia!
     why_am_i_recommended: Welcome to Kastia!
     channels: 3
 
     #Properties for Judis 12
   - flag: 0
-    server_message: Welcome to Judis!
+    server_message: ""
     event_message: Judis!
     why_am_i_recommended: Welcome to Judis!
     channels: 3
 
     #Properties for Arcenia 13
   - flag: 0
-    server_message: Welcome to Arcenia!
+    server_message: ""
     event_message: Arcenia!
     why_am_i_recommended: Welcome to Arcenia!
     channels: 3
 
     #Properties for Plana 14
   - flag: 0
-    server_message: Welcome to Plana!
+    server_message: ""
     event_message: Plana!
     why_am_i_recommended: Welcome to Plana!
     channels: 3
 
     #Properties for El Nido 15
   - flag: 0
-    server_message: Welcome to El Nido!
+    server_message: ""
     event_message: El Nido!
     why_am_i_recommended: Welcome to El Nido!
     channels: 3
 
     #Properties for Kalluna 16
   - flag: 0
-    server_message: Welcome to Kalluna!
+    server_message: ""
     event_message: Kalluna!
     why_am_i_recommended: Welcome to Kalluna!
     channels: 3
 
     #Properties for Stius 17
   - flag: 0
-    server_message: Welcome to Stius!
+    server_message: ""
     event_message: Stius!
     why_am_i_recommended: Welcome to Stius!
     channels: 3
 
     #Properties for Croa 18
   - flag: 0
-    server_message: Welcome to Croa!
+    server_message: ""
     event_message: Croa!
     why_am_i_recommended: Welcome to Croa!
     channels: 3
 
     #Properties for Zenith 19
   - flag: 0
-    server_message: Welcome to Zenith!
+    server_message: ""
     event_message: Zenith!
     why_am_i_recommended: Welcome to Zenith!
     channels: 3
 
     #Properties for Medere 20
   - flag: 0
-    server_message: Welcome to Medere!
+    server_message: ""
     event_message: Medere!
     why_am_i_recommended: Welcome to Medere!
     channels: 3
@@ -178,8 +178,8 @@ server:
     COUPON_INTERVAL: 3600000            #60 minutes, 3600000.
     UPDATE_INTERVAL: 777                #Dictates the frequency on which the "centralized server time" is updated.
 
-    ENABLE_PIC: true               #Pick true/false to enable or disable Pic. Delete character requires PIC available.
-    ENABLE_PIN: true               #Pick true/false to enable or disable Pin.
+    ENABLE_PIC: false               #Pick true/false to enable or disable Pic. Delete character requires PIC available.
+    ENABLE_PIN: false               #Pick true/false to enable or disable Pin.
 
     BYPASS_PIC_EXPIRATION: 20           #Enables PIC bypass, which will remain active for that account by that client machine for N minutes. Set 0 to disable.
     BYPASS_PIN_EXPIRATION: 15           #Enables PIN bypass, which will remain active for that account by that client machine for N minutes. Set 0 to disable.
@@ -334,7 +334,7 @@ server:
 
     #Some Gameplay Enhancing Configurations
     #Scroll Configuration
-    USE_PERFECT_GM_SCROLL: true     #Scrolls from GMs never uses up slots nor fails.
+    USE_PERFECT_GM_SCROLL: false     #Scrolls from GMs never uses up slots nor fails.
     USE_PERFECT_SCROLLING: false     #Scrolls doesn't use slots upon failure.
     USE_ENHANCED_CHSCROLL: false     #Equips even more powerful with chaos upgrade.
     USE_ENHANCED_CRAFTING: false     #Apply chaos scroll on every equip crafted.
@@ -370,7 +370,7 @@ server:
     QUEST_POINT_PER_EVENT_CLEAR: 0       #Each completed event instance awards N quest points, set 0 to disable.
 
     #Guild Configuration
-    CREATE_GUILD_MIN_PARTNERS: 6         #Minimum number of members on Guild Headquarters to establish a new guild.
+    CREATE_GUILD_MIN_PARTNERS: 1         #Minimum number of members on Guild Headquarters to establish a new guild.
     CREATE_GUILD_COST: 1500000
     CHANGE_EMBLEM_COST: 5000000
     EXPAND_GUILD_BASE_COST: 500000
@@ -416,7 +416,7 @@ server:
     MOUNT_EXHAUST_COUNT: 1             #Number of proc counts (1 per minute) on the exhaust schedule for tiredness.
 
     #Pet Hunger Configuration
-    PETS_NEVER_HUNGRY: false        #If true, pets and mounts will never grow hungry.
+    PETS_NEVER_HUNGRY: true        #If true, pets and mounts will never grow hungry.
     GM_PETS_NEVER_HUNGRY: true      #If true, pets and mounts owned by GMs will never grow hungry.
 
     #Event Configuration

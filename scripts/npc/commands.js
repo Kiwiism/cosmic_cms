@@ -11,7 +11,7 @@ var status;
 var common_heading = "@";
 var staff_heading = "!";
 
-var levels = ["Common", "Donator", "JrGM", "GM", "SuperGM", "Developer", "Admin"];
+var levels = ["Regular Player", "Privileged Player", "Sandbox / Tester", "GM", "Moderator", "Administrator", "Owner"];
 var commands;
 
 function writeHeavenMSCommands() {
@@ -47,7 +47,7 @@ function action(mode, type, selection) {
 
             cm.sendSimple(sendStr);
         } else if (status == 1) {
-            var lvComm, lvDesc, lvHead = (selection < 2) ? common_heading : staff_heading;
+            var lvComm, lvDesc, lvHead = (selection < 3) ? common_heading : staff_heading;
 
             if (selection > 6) {
                 selection = 6;

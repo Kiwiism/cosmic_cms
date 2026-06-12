@@ -44,7 +44,7 @@ public class ItemCommand extends Command {
         Character player = c.getPlayer();
 
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !item <itemid> <quantity>");
+            player.yellowMessage("Syntax: !giveitem <itemid> <quantity>");
             return;
         }
 
@@ -76,7 +76,7 @@ public class ItemCommand extends Command {
                 InventoryManipulator.addById(c, itemId, quantity, player.getName(), petid, expiration);
                 return;
             } else {
-                player.yellowMessage("Pet Syntax: !item <itemid> <expiration>");
+                player.yellowMessage("Pet Syntax: !giveitem <itemid> <expiration>");
                 return;
             }
         }

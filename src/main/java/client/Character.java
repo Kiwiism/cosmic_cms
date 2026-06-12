@@ -5565,8 +5565,7 @@ public class Character extends AbstractCharacterObject {
     }
 
     public void setGMLevel(int level) {
-        this.gmLevel = Math.min(level, 6);
-        this.gmLevel = Math.max(level, 0);
+        this.gmLevel = Math.max(0, Math.min(level, 6));
 
         whiteChat = gmLevel >= 4;   // thanks ozanrijen for suggesting default white chat
     }
@@ -6154,7 +6153,8 @@ public class Character extends AbstractCharacterObject {
     }
 
     public boolean isGM() {
-        return gmLevel > 1;
+        // Access levels 0-2 are player roles. Only levels 3-6 are staff roles.
+        return gmLevel >= 3;
     }
 
     public boolean isHidden() {
@@ -6225,7 +6225,7 @@ public class Character extends AbstractCharacterObject {
         return spUsed;
     }
 
-    private int getJobLevelSp(int level, Job job, int jobBranch) {
+    private static int getJobLevelSp(int level, Job job, int jobBranch) {
         if (getJobStyleInternal(job.getId(), (byte) 0x40) == Job.MAGICIAN) {
             level += 2;  // starts earlier, level 8
         }
@@ -6233,7 +6233,7 @@ public class Character extends AbstractCharacterObject {
         return 3 * level + GameConstants.getChangeJobSpUpgrade(jobBranch);
     }
 
-    private int getJobMaxSp(Job job) {
+    private static int getJobMaxSp(Job job) {
         int jobBranch = GameConstants.getJobBranch(job);
         int jobRange = GameConstants.getJobUpgradeLevelRange(jobBranch);
         return getJobLevelSp(jobRange, job, jobBranch);
@@ -7964,6 +7964,219 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
+    /**
+     * Refunds primary-stat AP without changing HP/MP or HP/MP AP usage.
+     *
+     * @return refunded AP, or -1 when the resulting AP pool would exceed the configured cap
+     */
+    public synchronized int resetAbilityPoints() {
+        int refundedAp = (str - 4) + (dex - 4) + (int_ - 4) + (luk - 4);
+        if (refundedAp <= 0) {
+            return 0;
+        }
+
+        long newRemainingAp = (long) remainingAp + refundedAp;
+        if (newRemainingAp > YamlConfig.config.server.MAX_AP) {
+            return -1;
+        }
+
+        updateStrDexIntLuk(4, 4, 4, 4, (int) newRemainingAp);
+        return refundedAp;
+    }
+
+    /**
+     * Rebuilds base HP/MP from deterministic midpoint gains. Mutable bonuses
+     * such as INT, equipment, buffs, HP/MP AP assignment, and skill levels are
+     * deliberately excluded.
+     */
+    public synchronized int[] resetAverageHpMp(boolean resetHp, boolean resetMp) {
+        int[] target = calculateAverageHpMp(job, level);
+        if (resetHp) {
+            updateHpMaxHp(target[0], target[0]);
+        }
+        if (resetMp) {
+            updateMpMaxMp(target[1], target[1]);
+        }
+        if (resetHp || resetMp) {
+            setHpMpApUsed(0);
+        }
+        return target;
+    }
+
+    static int[] calculateAverageHpMp(Job job, int level) {
+        int normalizedLevel = Math.max(1, level);
+        if (job.isA(Job.GM)) {
+            return new int[]{30000, 30000};
+        }
+
+        int hp = 50;
+        int mp = 5;
+        if (isBeginnerJob(job)) {
+            return capHpMp(hp + ((normalizedLevel - 1) * 14), mp + ((normalizedLevel - 1) * 11));
+        }
+
+        int firstAdvancementLevel = isMagicianLine(job) ? 8 : 10;
+        int beginnerLevelUps = Math.min(normalizedLevel - 1, firstAdvancementLevel - 1);
+        hp += beginnerLevelUps * 14;
+        mp += beginnerLevelUps * 11;
+
+        int jobLevelUps = Math.max(0, normalizedLevel - firstAdvancementLevel);
+        int[] levelGain = getAverageLevelGain(job);
+        hp += jobLevelUps * levelGain[0];
+        mp += jobLevelUps * levelGain[1];
+
+        int[] advancementGain = getAverageAdvancementGain(job, normalizedLevel);
+        hp += advancementGain[0];
+        mp += advancementGain[1];
+        return capHpMp(hp, mp);
+    }
+
+    private static boolean isBeginnerJob(Job job) {
+        return job == Job.BEGINNER || job == Job.NOBLESSE || job == Job.LEGEND || job == Job.EVAN;
+    }
+
+    private static boolean isMagicianLine(Job job) {
+        return job.isA(Job.MAGICIAN) || job.isA(Job.BLAZEWIZARD1)
+                || (job.getId() >= Job.EVAN1.getId() && job.getId() <= Job.EVAN10.getId());
+    }
+
+    private static int[] getAverageLevelGain(Job job) {
+        if (job.isA(Job.WARRIOR) || job.isA(Job.DAWNWARRIOR1)) {
+            return new int[]{26, 5};
+        }
+        if (job.isA(Job.MAGICIAN) || job.isA(Job.BLAZEWIZARD1)) {
+            return new int[]{12, 23};
+        }
+        if (job.isA(Job.BOWMAN) || job.isA(Job.THIEF)
+                || job.isA(Job.WINDARCHER1) || job.isA(Job.NIGHTWALKER1)) {
+            return new int[]{22, 15};
+        }
+        if (job.isA(Job.PIRATE) || job.isA(Job.THUNDERBREAKER1)) {
+            return new int[]{25, 20};
+        }
+        if (job.isA(Job.ARAN1)) {
+            return new int[]{46, 6};
+        }
+
+        // Evan currently has no natural level-up HP/MP branch in levelUp().
+        return new int[]{0, 0};
+    }
+
+    private static int[] getAverageAdvancementGain(Job job, int level) {
+        int hp = 0;
+        int mp = 0;
+        if (job.getId() >= Job.EVAN1.getId() && job.getId() <= Job.EVAN10.getId()) {
+            int[] levels = {10, 20, 30, 40, 50, 60, 80, 100, 120, 160};
+            int stages = Math.min(GameConstants.getSkillBook(job.getId()) + 1, levels.length);
+            for (int stage = 0; stage < stages; stage++) {
+                if (level >= levels[stage]) {
+                    mp += stage == 0 ? 125 : 475;
+                }
+            }
+            return new int[]{hp, mp};
+        }
+
+        int[] levels = {isMagicianLine(job) ? 8 : 10, 30, 70, 120};
+        int stages = Math.min(GameConstants.getJobBranch(job), levels.length);
+        for (int stage = 0; stage < stages; stage++) {
+            if (level < levels[stage]) {
+                continue;
+            }
+
+            if (isWarriorLine(job)) {
+                hp += stage == 0 ? 225 : 325;
+            } else if (isMagicianLine(job)) {
+                mp += stage == 0 ? 125 : 475;
+            } else {
+                hp += stage == 0 ? 125 : 325;
+                mp += stage == 0 ? 37 : 175;
+            }
+        }
+        return new int[]{hp, mp};
+    }
+
+    private static boolean isWarriorLine(Job job) {
+        return job.isA(Job.WARRIOR) || job.isA(Job.DAWNWARRIOR1) || job.isA(Job.ARAN1);
+    }
+
+    private static int[] capHpMp(int hp, int mp) {
+        return new int[]{Math.min(30000, hp), Math.min(30000, mp)};
+    }
+
+    /**
+     * Resets job-tree skills and restores only the SP legitimately earned for
+     * the character's current level and job progression.
+     *
+     * @return total available SP after the reset
+     */
+    public synchronized int resetSkillPoints() {
+        List<Entry<Skill, SkillEntry>> refundableSkills = new ArrayList<>();
+        List<Entry<Skill, SkillEntry>> hiddenSkills = new ArrayList<>();
+
+        for (Entry<Skill, SkillEntry> entry : new ArrayList<>(skills.entrySet())) {
+            Skill skill = entry.getKey();
+            SkillEntry skillEntry = entry.getValue();
+            if (skillEntry.skillevel <= 0 || !GameConstants.isInJobTree(skill.getId(), job.getId())) {
+                continue;
+            }
+
+            if (GameConstants.isHiddenSkills(skill.getId())) {
+                hiddenSkills.add(entry);
+                continue;
+            }
+            if (skill.isBeginnerSkill()) {
+                continue;
+            }
+
+            refundableSkills.add(entry);
+        }
+
+        for (Entry<Skill, SkillEntry> entry : refundableSkills) {
+            SkillEntry skillEntry = entry.getValue();
+            changeSkillLevel(entry.getKey(), (byte) 0, skillEntry.masterlevel, skillEntry.expiration);
+        }
+        for (Entry<Skill, SkillEntry> entry : hiddenSkills) {
+            SkillEntry skillEntry = entry.getValue();
+            changeSkillLevel(entry.getKey(), (byte) 0, skillEntry.masterlevel, skillEntry.expiration);
+        }
+
+        int[] legitimateSp = calculateLegitimateSkillPoints(job, level, remainingSp.length);
+        int totalSp = 0;
+        for (int skillBook = 0; skillBook < legitimateSp.length; skillBook++) {
+            updateRemainingSp(legitimateSp[skillBook], skillBook);
+            totalSp += legitimateSp[skillBook];
+        }
+        return totalSp;
+    }
+
+    static int[] calculateLegitimateSkillPoints(Job job, int level, int skillBookCount) {
+        int[] legitimateSp = new int[skillBookCount];
+        if (job == Job.BEGINNER || job == Job.NOBLESSE || job == Job.LEGEND || job == Job.EVAN) {
+            return legitimateSp;
+        }
+
+        if (GameConstants.hasSPTable(job)) {
+            // Evan growth stages begin at these levels and use separate SP books.
+            int[] advancementLevels = {10, 20, 30, 40, 50, 60, 80, 100, 120, 160};
+            int currentBook = Math.min(GameConstants.getSkillBook(job.getId()), skillBookCount - 1);
+            for (int skillBook = 0; skillBook <= currentBook; skillBook++) {
+                int startLevel = advancementLevels[skillBook];
+                int endLevel = skillBook < currentBook
+                        ? advancementLevels[skillBook + 1] - 1
+                        : level;
+                if (level >= startLevel) {
+                    legitimateSp[skillBook] = 3 * (Math.min(level, endLevel) - startLevel + 1);
+                }
+            }
+            return legitimateSp;
+        }
+
+        int jobBranch = GameConstants.getJobBranch(job);
+        int earnedSp = getJobLevelSp(Math.max(0, level - 10), job, jobBranch);
+        legitimateSp[0] = Math.max(0, Math.min(earnedSp, getJobMaxSp(job)));
+        return legitimateSp;
+    }
+
     public void resetBattleshipHp() {
         int bshipLevel = Math.max(getLevel() - 120, 0);  // thanks alex12 for noticing battleship HP issues for low-level players
         this.battleshipHp = 400 * getSkillLevel(SkillFactory.getSkill(Corsair.BATTLE_SHIP)) + (bshipLevel * 200);
@@ -8788,7 +9001,7 @@ public class Character extends AbstractCharacterObject {
     }
 
     public void setGM(int level) {
-        this.gmLevel = level;
+        setGMLevel(level);
     }
 
     public void setGuildId(int _id) {
@@ -9686,7 +9899,7 @@ public class Character extends AbstractCharacterObject {
 
     @Override
     public void sendSpawnData(Client client) {
-        if (!this.isHidden() || client.getPlayer().gmLevel() > 1) {
+        if (!this.isHidden() || client.getPlayer().isGM()) {
             client.sendPacket(PacketCreator.spawnPlayerMapObject(client, this, false));
 
             if (buffEffects.containsKey(getJobMapChair(job))) { // mustn't effLock, chrLock sendSpawnData

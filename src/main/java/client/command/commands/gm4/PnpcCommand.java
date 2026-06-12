@@ -47,7 +47,7 @@ public class PnpcCommand extends Command {
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !pnpc <npcid>");
+            player.yellowMessage("Syntax: !spawnpersistentnpc <npcid>");
             return;
         }
 

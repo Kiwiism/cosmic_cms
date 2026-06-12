@@ -28,6 +28,7 @@ import client.Client;
 import client.Skill;
 import client.SkillFactory;
 import client.command.Command;
+import constants.game.GameConstants;
 
 public class BuffCommand extends Command {
     {
@@ -44,8 +45,14 @@ public class BuffCommand extends Command {
         int skillid = Integer.parseInt(params[0]);
 
         Skill skill = SkillFactory.getSkill(skillid);
-        if (skill != null) {
-            skill.getEffect(skill.getMaxLevel()).applyTo(player);
+        if (skill == null
+                || skill.isBeginnerSkill()
+                || GameConstants.isGMSkills(skillid)
+                || !GameConstants.isInJobTree(skillid, player.getJob().getId())) {
+            player.yellowMessage("You may only apply a non-beginner buff from your own job tree.");
+            return;
         }
+
+        skill.getEffect(skill.getMaxLevel()).applyTo(player);
     }
 }

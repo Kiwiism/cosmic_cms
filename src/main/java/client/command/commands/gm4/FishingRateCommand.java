@@ -37,7 +37,7 @@ public class FishingRateCommand extends Command {
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !fishrate <newrate>");
+            player.yellowMessage("Syntax: !fishingrate <newrate>");
             return;
         }
 

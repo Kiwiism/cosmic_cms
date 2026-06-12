@@ -205,7 +205,7 @@ public abstract class AbstractCharacterObject extends AbstractAnimatedMapObject 
         return localmaxmp;
     }
 
-    private void setHpMpApUsed(int mpApUsed) {
+    protected void setHpMpApUsed(int mpApUsed) {
         this.hpMpApUsed = mpApUsed;
     }
 

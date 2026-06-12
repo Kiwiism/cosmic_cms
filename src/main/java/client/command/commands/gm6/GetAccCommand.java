@@ -36,7 +36,7 @@ public class GetAccCommand extends Command {
     public void execute(Client c, String[] params) {
         Character player = c.getPlayer();
         if (params.length < 1) {
-            player.yellowMessage("Syntax: !getacc <playername>");
+            player.yellowMessage("Syntax: !getaccount <playername>");
             return;
         }
         Character victim = c.getWorldServer().getPlayerStorage().getCharacterByName(params[0]);

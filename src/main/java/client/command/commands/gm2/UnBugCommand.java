@@ -34,6 +34,8 @@ public class UnBugCommand extends Command {
 
     @Override
     public void execute(Client c, String[] params) {
-        c.getPlayer().getMap().broadcastMessage(PacketCreator.enableActions());
+        // Self-recovery only: re-enable this client's actions without affecting the map.
+        c.sendPacket(PacketCreator.enableActions());
+        c.getPlayer().message("Your client actions have been re-enabled.");
     }
 }

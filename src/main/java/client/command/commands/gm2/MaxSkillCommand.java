@@ -25,10 +25,10 @@ package client.command.commands.gm2;
 
 import client.Character;
 import client.Client;
-import client.Job;
 import client.Skill;
 import client.SkillFactory;
 import client.command.Command;
+import constants.game.GameConstants;
 import provider.Data;
 import provider.DataProviderFactory;
 import provider.wz.WZFiles;
@@ -44,7 +44,12 @@ public class MaxSkillCommand extends Command {
         for (Data skill_ : DataProviderFactory.getDataProvider(WZFiles.STRING).getData("Skill.img").getChildren()) {
             try {
                 Skill skill = SkillFactory.getSkill(Integer.parseInt(skill_.getName()));
-                player.changeSkillLevel(skill, (byte) skill.getMaxLevel(), skill.getMaxLevel(), -1);
+                if (skill != null
+                        && !skill.isBeginnerSkill()
+                        && !GameConstants.isGMSkills(skill.getId())
+                        && GameConstants.isInJobTree(skill.getId(), player.getJob().getId())) {
+                    player.changeSkillLevel(skill, (byte) skill.getMaxLevel(), skill.getMaxLevel(), -1);
+                }
             } catch (NumberFormatException nfe) {
                 nfe.printStackTrace();
                 break;
@@ -52,14 +57,6 @@ public class MaxSkillCommand extends Command {
             }
         }
 
-        if (player.getJob().isA(Job.ARAN1) || player.getJob().isA(Job.LEGEND)) {
-            Skill skill = SkillFactory.getSkill(5001005);
-            player.changeSkillLevel(skill, (byte) -1, -1, -1);
-        } else {
-            Skill skill = SkillFactory.getSkill(21001001);
-            player.changeSkillLevel(skill, (byte) -1, -1, -1);
-        }
-
-        player.yellowMessage("Skills maxed out.");
+        player.yellowMessage("Current job-tree skills maxed out.");
     }
 }
