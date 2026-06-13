@@ -3,6 +3,15 @@
 !.idea/codeStyles/
 *.iml
 /target
+/cms/**/target/
+/cms/web/node_modules/
+/cms/web/.next/
+/cms/web/out/
+/cms/web/tsconfig.tsbuildinfo
+/cms/.env
+/cms/.env.local
+/cms/.runtime/
+/cms/assets/cache/
 
 # build files
 /build/

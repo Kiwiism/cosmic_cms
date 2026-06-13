@@ -19,6 +19,9 @@ services:
       - ./wz:/opt/server/wz
     environment:
       DB_HOST: "db" ## Remember if this is present it will OVERRIDE the host in the config.yaml, if you put here anything other than db, you'll need to change the config.yaml jdbc string to port 3307, and not port 3306
+      COSMIC_BRIDGE_HOST: "0.0.0.0"
+      COSMIC_BRIDGE_PORT: "8787"
+      COSMIC_BRIDGE_TOKEN: "${COSMIC_BRIDGE_TOKEN:-development-only-change-me}"
     
   db:
     image: mysql:8.4.0
@@ -30,3 +33,34 @@ services:
       - "3307:3306"
     volumes:
       - ./database/docker-db-data:/var/lib/mysql
+      - ./database/docker-init:/docker-entrypoint-initdb.d
+
+  cms-api:
+    build: ./cms/api
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8081:8081"
+    volumes:
+      - ./wz:/opt/cosmic/wz:ro
+    environment:
+      CMS_DB_URL: "jdbc:mysql://db:3306/cosmic_cms"
+      CMS_DB_USER: "root"
+      CMS_DB_PASSWORD: ""
+      GAME_DB_URL: "jdbc:mysql://db:3306/cosmic"
+      GAME_DB_USER: "root"
+      GAME_DB_PASSWORD: ""
+      COSMIC_WZ_PATH: "/opt/cosmic/wz"
+      COSMIC_BRIDGE_URL: "http://maplestory:8787"
+      COSMIC_BRIDGE_TOKEN: "${COSMIC_BRIDGE_TOKEN:-development-only-change-me}"
+      CMS_ALLOWED_ORIGIN: "http://localhost:3000"
+
+  cms-web:
+    build:
+      context: ./cms/web
+      args:
+        NEXT_PUBLIC_CMS_API_URL: "http://localhost:8081"
+    depends_on:
+      - cms-api
+    ports:
+      - "3000:3000"

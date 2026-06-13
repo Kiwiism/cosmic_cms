@@ -27,6 +27,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.ItemInformationProvider;
 import tools.Randomizer;
+import tools.DatabaseConnection;
+
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Alan (SharpAceX)
@@ -83,7 +91,8 @@ public class Gachapon {
         }
 
         public int[] getItems(int tier) {
-            return gachapon.getItems(tier);
+            int[] override = getDatabaseOverride(name(), tier);
+            return override == null ? gachapon.getItems(tier) : override;
         }
 
         public int getItem(int tier) {
@@ -100,6 +109,44 @@ public class Gachapon {
                 }
             }
             return null;
+        }
+
+        /**
+         * CMS-managed rewards override the source arrays only after a location has been
+         * initialized in cosmic_cms. If the CMS schema is unavailable, the original
+         * Java lists remain the safe runtime fallback.
+         */
+        private static int[] getDatabaseOverride(String location, int tier) {
+            try (Connection connection = DatabaseConnection.getConnection();
+                 PreparedStatement exists = connection.prepareStatement("""
+                         SELECT COUNT(*) FROM cosmic_cms.cms_gachapon_entries
+                         WHERE location_code = ?
+                         """)) {
+                exists.setString(1, location);
+                try (ResultSet rows = exists.executeQuery()) {
+                    if (!rows.next() || rows.getInt(1) == 0) {
+                        return null;
+                    }
+                }
+                try (PreparedStatement query = connection.prepareStatement("""
+                        SELECT item_id FROM cosmic_cms.cms_gachapon_entries
+                        WHERE location_code = ? AND tier = ? AND enabled = TRUE
+                        ORDER BY position, id
+                        """)) {
+                    query.setString(1, location);
+                    query.setInt(2, tier);
+                    List<Integer> items = new ArrayList<>();
+                    try (ResultSet rows = query.executeQuery()) {
+                        while (rows.next()) {
+                            items.add(rows.getInt("item_id"));
+                        }
+                    }
+                    return items.stream().mapToInt(Integer::intValue).toArray();
+                }
+            } catch (SQLException exception) {
+                log.debug("Using source gachapon list for {} because CMS overrides are unavailable", location);
+                return null;
+            }
         }
 
         public static String[] getLootInfo() {

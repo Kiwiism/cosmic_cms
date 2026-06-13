@@ -21,6 +21,7 @@
  */
 package net.server;
 
+import admin.CmsBridgeServer;
 import client.Character;
 import client.Client;
 import client.Family;
@@ -125,6 +126,7 @@ public class Server {
     private static ChannelDependencies channelDependencies;
 
     private LoginServer loginServer;
+    private CmsBridgeServer cmsBridgeServer;
     private final List<Map<Integer, String>> channels = new LinkedList<>();
     private final List<World> worlds = new ArrayList<>();
     private final Properties subnetInfo = new Properties();
@@ -938,6 +940,12 @@ public class Server {
         log.info("Listening on port 8484");
 
         online = true;
+        cmsBridgeServer = CmsBridgeServer.fromEnvironment();
+        if (cmsBridgeServer != null) {
+            cmsBridgeServer.start();
+        } else {
+            log.info("CMS bridge disabled because COSMIC_BRIDGE_TOKEN is not set.");
+        }
         Duration initDuration = Duration.between(beforeInit, Instant.now());
         log.info("Cosmic is now online after {} ms.", initDuration.toMillis());
 
@@ -1964,6 +1972,10 @@ public class Server {
         TimerManager.getInstance().stop();
 
         log.info("Worlds and channels are offline.");
+        if (cmsBridgeServer != null) {
+            cmsBridgeServer.stop();
+            cmsBridgeServer = null;
+        }
         loginServer.stop();
         if (!restart) {  // shutdown hook deadlocks if System.exit() method is used within its body chores, thanks MIKE for pointing that out
             // We disabled log4j's shutdown hook in the config file, so we have to manually shut it down here,
