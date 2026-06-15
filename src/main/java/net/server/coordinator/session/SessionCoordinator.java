@@ -34,8 +34,6 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -66,8 +64,8 @@ public class SessionCoordinator {
 
     private final SessionInitialization sessionInit = new SessionInitialization();
     private final LoginStorage loginStorage = new LoginStorage();
-    private final Map<Integer, Client> onlineClients = new HashMap<>(); // Key: account id
-    private final Set<Hwid> onlineRemoteHwids = new HashSet<>(); // Hwid/nibblehwid
+    private final Map<Integer, Client> onlineClients = new ConcurrentHashMap<>(); // Key: account id
+    private final Set<Hwid> onlineRemoteHwids = ConcurrentHashMap.newKeySet(); // Hwid/nibblehwid
     private final Map<String, Client> loginRemoteHosts = new ConcurrentHashMap<>(); // Key: Ip (+ nibblehwid)
     private final HostHwidCache hostHwidCache = new HostHwidCache();
 
@@ -339,6 +337,15 @@ public class SessionCoordinator {
 
     public void runUpdateLoginHistory() {
         loginStorage.clearExpiredAttempts();
+    }
+
+    public void clear() {
+        onlineClients.clear();
+        onlineRemoteHwids.clear();
+        loginRemoteHosts.clear();
+        hostHwidCache.clear();
+        loginStorage.clear();
+        sessionInit.clear();
     }
 
     public void printSessionTrace() {

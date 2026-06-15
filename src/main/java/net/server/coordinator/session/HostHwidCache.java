@@ -45,4 +45,7 @@ class HostHwidCache {
         return hostHwid == null ? null : hostHwid.hwid();
     }
 
+    void clear() {
+        hostHwidCache.clear();
+    }
 }

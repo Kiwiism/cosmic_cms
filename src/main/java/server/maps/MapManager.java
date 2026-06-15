@@ -48,11 +48,15 @@ public class MapManager {
     }
 
     public MapleMap resetMap(int mapid) {
+        MapleMap removed;
         mapsWLock.lock();
         try {
-            maps.remove(mapid);
+            removed = maps.remove(mapid);
         } finally {
             mapsWLock.unlock();
+        }
+        if (removed != null) {
+            removed.dispose();
         }
 
         return getMap(mapid);
@@ -131,7 +135,16 @@ public class MapManager {
     }
 
     public void dispose() {
-        for (MapleMap map : getMaps().values()) {
+        Map<Integer, MapleMap> mapsToDispose;
+        mapsWLock.lock();
+        try {
+            mapsToDispose = new HashMap<>(maps);
+            maps.clear();
+        } finally {
+            mapsWLock.unlock();
+        }
+
+        for (MapleMap map : mapsToDispose.values()) {
             map.dispose();
         }
 

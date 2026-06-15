@@ -84,4 +84,17 @@ public class SessionInitialization {
             lock.unlock();
         }
     }
+
+    public void clear() {
+        for (Lock lock : locks) {
+            lock.lock();
+        }
+        try {
+            remoteHostsInInitState.clear();
+        } finally {
+            for (int i = locks.size() - 1; i >= 0; i--) {
+                locks.get(i).unlock();
+            }
+        }
+    }
 }

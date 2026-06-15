@@ -1,6 +1,8 @@
 package server;
 
 import config.YamlConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.DatabaseConnection;
 
 import java.sql.Connection;
@@ -13,22 +15,29 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class ExpLogger {
-    private static final LinkedBlockingQueue<ExpLogRecord> expLoggerQueue = new LinkedBlockingQueue<>();
+    private static final Logger log = LoggerFactory.getLogger(ExpLogger.class);
+    private static final int MAX_QUEUED_RECORDS = 100_000;
+    private static final LinkedBlockingQueue<ExpLogRecord> expLoggerQueue =
+            new LinkedBlockingQueue<>(MAX_QUEUED_RECORDS);
+    private static final AtomicLong droppedRecords = new AtomicLong();
     private static final short EXP_LOGGER_THREAD_SLEEP_DURATION_SECONDS = 60;
     private static final short EXP_LOGGER_THREAD_SHUTDOWN_WAIT_DURATION_MINUTES = 5;
 
     public record ExpLogRecord(int worldExpRate, int expCoupon, long gainedExp, int currentExp,Timestamp expGainTime, int charid) {}
 
     public static void putExpLogRecord(ExpLogRecord expLogRecord) {
-        try {
-            expLoggerQueue.put(expLogRecord);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        if (!expLoggerQueue.offer(expLogRecord)) {
+            long dropped = droppedRecords.incrementAndGet();
+            if (dropped == 1 || dropped % 1000 == 0) {
+                log.warn("EXP log queue reached {} records; dropped {} records so far, latest character {}",
+                        MAX_QUEUED_RECORDS, dropped, expLogRecord.charid());
+            }
         }
     }
 
@@ -44,11 +53,14 @@ public class ExpLogger {
     private static Runnable saveExpLoggerToDBRunnable = new Runnable() {
         @Override
         public void run() {
+            List<ExpLogRecord> drainedExpLogs = new ArrayList<>();
+            expLoggerQueue.drainTo(drainedExpLogs);
+            if (drainedExpLogs.isEmpty()) {
+                return;
+            }
+
             try (Connection con = DatabaseConnection.getConnection();
                     PreparedStatement ps = con.prepareStatement("INSERT INTO characterexplogs (world_exp_rate, exp_coupon, gained_exp, current_exp, exp_gain_time, charid) VALUES (?, ?, ?, ?, ?, ?)")) {
-
-                List<ExpLogRecord> drainedExpLogs = new ArrayList<>();
-                expLoggerQueue.drainTo(drainedExpLogs);
                 for (ExpLogRecord expLogRecord : drainedExpLogs) {
                     ps.setInt(1, expLogRecord.worldExpRate);
                     ps.setInt(2, expLogRecord.expCoupon);
@@ -60,7 +72,18 @@ public class ExpLogger {
                 }
                 ps.executeBatch();
             } catch (SQLException sqle) {
-                sqle.printStackTrace();
+                log.error("Failed to persist queued EXP logs", sqle);
+                int restored = 0;
+                for (ExpLogRecord record : drainedExpLogs) {
+                    if (!expLoggerQueue.offer(record)) {
+                        break;
+                    }
+                    restored++;
+                }
+                if (restored < drainedExpLogs.size()) {
+                    log.warn("EXP log queue was full while restoring a failed batch; dropped {} records",
+                            drainedExpLogs.size() - restored);
+                }
             }
         }
     };
@@ -82,7 +105,8 @@ public class ExpLogger {
             runThreadBeforeShutdown.start();
             return true;
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while stopping EXP logger", e);
             return false;
         }
     }

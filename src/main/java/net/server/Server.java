@@ -47,6 +47,8 @@ import net.packet.Packet;
 import net.server.channel.Channel;
 import net.server.coordinator.session.IpAddresses;
 import net.server.coordinator.session.SessionCoordinator;
+import net.server.coordinator.login.LoginBypassCoordinator;
+import net.server.coordinator.world.EventRecallCoordinator;
 import net.server.guild.Alliance;
 import net.server.guild.Guild;
 import net.server.guild.GuildCharacter;
@@ -115,7 +117,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Server {
     private static final Logger log = LoggerFactory.getLogger(Server.class);
-    private static Server instance = null;
+    private static volatile Server instance = null;
+    private static Thread shutdownHook;
 
     public static Server getInstance() {
         if (instance == null) {
@@ -671,15 +674,17 @@ public class Server {
             int hourDay = c.get(Calendar.HOUR_OF_DAY);
 
             int weekdayMask = (1 << weekDay);
-            PreparedStatement ps = con.prepareStatement("SELECT couponid FROM nxcoupons WHERE (activeday & ?) = ? AND starthour <= ? AND endhour > ?");
-            ps.setInt(1, weekdayMask);
-            ps.setInt(2, weekdayMask);
-            ps.setInt(3, hourDay);
-            ps.setInt(4, hourDay);
+            try (PreparedStatement ps = con.prepareStatement(
+                    "SELECT couponid FROM nxcoupons WHERE (activeday & ?) = ? AND starthour <= ? AND endhour > ?")) {
+                ps.setInt(1, weekdayMask);
+                ps.setInt(2, weekdayMask);
+                ps.setInt(3, hourDay);
+                ps.setInt(4, hourDay);
 
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    activeCoupons.add(rs.getInt("couponid"));
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        activeCoupons.add(rs.getInt("couponid"));
+                    }
                 }
             }
 
@@ -868,9 +873,7 @@ public class Server {
         Instant beforeInit = Instant.now();
         log.info("Cosmic v{} starting up.", ServerConstants.VERSION);
 
-        if (YamlConfig.config.server.SHUTDOWNHOOK) {
-            Runtime.getRuntime().addShutdownHook(new Thread(shutdown(false)));
-        }
+        registerShutdownHook();
 
         if (!DatabaseConnection.initializeConnectionPool()) {
             throw new IllegalStateException("Failed to initiate a connection to the database");
@@ -1940,6 +1943,20 @@ public class Server {
         return () -> shutdownInternal(restart);
     }
 
+    private static synchronized void registerShutdownHook() {
+        if (!YamlConfig.config.server.SHUTDOWNHOOK || shutdownHook != null) {
+            return;
+        }
+
+        shutdownHook = new Thread(() -> {
+            Server current = instance;
+            if (current != null) {
+                current.shutdownInternal(false);
+            }
+        }, "Cosmic-Shutdown");
+        Runtime.getRuntime().addShutdownHook(shutdownHook);
+    }
+
     private synchronized void shutdownInternal(boolean restart) {
         log.info("{} the server!", restart ? "Restarting" : "Shutting down");
         if (getWorlds() == null) {
@@ -1972,6 +1989,9 @@ public class Server {
             cmsBridgeServer.stop();
             cmsBridgeServer = null;
         }
+        EventRecallCoordinator.getInstance().clear();
+        LoginBypassCoordinator.getInstance().clear();
+        SessionCoordinator.getInstance().clear();
         NettyServerRuntime.getInstance().stop();
         if (!restart) {  // shutdown hook deadlocks if System.exit() method is used within its body chores, thanks MIKE for pointing that out
             // We disabled log4j's shutdown hook in the config file, so we have to manually shut it down here,

@@ -77,4 +77,8 @@ public class LoginStorage {
             loginHistory.remove(accountId);
         }
     }
+
+    public void clear() {
+        loginHistory.clear();
+    }
 }

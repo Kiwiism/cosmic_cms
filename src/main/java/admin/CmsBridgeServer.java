@@ -13,6 +13,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
@@ -25,6 +26,7 @@ public final class CmsBridgeServer {
     private static final Logger log = LoggerFactory.getLogger(CmsBridgeServer.class);
     private final String token;
     private HttpServer server;
+    private ExecutorService executor;
 
     public CmsBridgeServer(String token) {
         this.token = token;
@@ -40,7 +42,8 @@ public final class CmsBridgeServer {
         int port = Integer.parseInt(System.getenv().getOrDefault("COSMIC_BRIDGE_PORT", "8787"));
         try {
             server = HttpServer.create(new InetSocketAddress(host, port), 0);
-            server.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
+            executor = Executors.newVirtualThreadPerTaskExecutor();
+            server.setExecutor(executor);
             server.createContext("/internal/admin/health", exchange -> handle(exchange, "GET", this::health));
             server.createContext("/internal/admin/cache/drops/reload",
                     exchange -> handle(exchange, "POST", this::reloadDrops));
@@ -56,6 +59,11 @@ public final class CmsBridgeServer {
     public void stop() {
         if (server != null) {
             server.stop(1);
+            server = null;
+        }
+        if (executor != null) {
+            executor.close();
+            executor = null;
         }
     }
 

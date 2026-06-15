@@ -75,9 +75,11 @@ public class LoginBypassCoordinator {
     }
 
     public void unregisterLoginBypassEntry(Hwid hwid, int accId) {
-        String hwidValue = hwid == null ? null : hwid.hwid();
-        Pair<String, Integer> entry = new Pair<>(hwidValue, accId);
-        loginBypass.remove(entry);
+        loginBypass.remove(new Pair<>(hwid, accId));
+    }
+
+    public void clear() {
+        loginBypass.clear();
     }
 
     public void runUpdateLoginBypass() {

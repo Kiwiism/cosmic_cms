@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 
+import static java.util.concurrent.TimeUnit.HOURS;
+
 /**
  * @author Ronan
  */
@@ -38,20 +40,27 @@ public class EventRecallCoordinator {
         return instance;
     }
 
-    private final ConcurrentHashMap<Integer, EventInstanceManager> eventHistory = new ConcurrentHashMap<>();
+    private static final long RECALL_EXPIRY_MILLIS = HOURS.toMillis(2);
+
+    private record RecallEntry(EventInstanceManager event, long expiresAt) {
+    }
+
+    private final ConcurrentHashMap<Integer, RecallEntry> eventHistory = new ConcurrentHashMap<>();
 
     private static boolean isRecallableEvent(EventInstanceManager eim) {
         return eim != null && !eim.isEventDisposed() && !eim.isEventCleared();
     }
 
     public EventInstanceManager recallEventInstance(int characterId) {
-        EventInstanceManager eim = eventHistory.remove(characterId);
-        return isRecallableEvent(eim) ? eim : null;
+        RecallEntry entry = eventHistory.remove(characterId);
+        return entry != null && entry.expiresAt() >= System.currentTimeMillis()
+                && isRecallableEvent(entry.event()) ? entry.event() : null;
     }
 
     public void storeEventInstance(int characterId, EventInstanceManager eim) {
         if (YamlConfig.config.server.USE_ENABLE_RECALL_EVENT && isRecallableEvent(eim)) {
-            eventHistory.put(characterId, eim);
+            eventHistory.put(characterId,
+                    new RecallEntry(eim, System.currentTimeMillis() + RECALL_EXPIRY_MILLIS));
         }
     }
 
@@ -59,8 +68,10 @@ public class EventRecallCoordinator {
         if (!eventHistory.isEmpty()) {
             List<Integer> toRemove = new LinkedList<>();
 
-            for (Entry<Integer, EventInstanceManager> eh : eventHistory.entrySet()) {
-                if (!isRecallableEvent(eh.getValue())) {
+            long now = System.currentTimeMillis();
+            for (Entry<Integer, RecallEntry> eh : eventHistory.entrySet()) {
+                RecallEntry entry = eh.getValue();
+                if (entry.expiresAt() < now || !isRecallableEvent(entry.event())) {
                     toRemove.add(eh.getKey());
                 }
             }
@@ -69,5 +80,9 @@ public class EventRecallCoordinator {
                 eventHistory.remove(r);
             }
         }
+    }
+
+    public void clear() {
+        eventHistory.clear();
     }
 }

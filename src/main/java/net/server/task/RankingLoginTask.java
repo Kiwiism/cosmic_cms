@@ -41,8 +41,8 @@ public class RankingLoginTask implements Runnable {
 
     private void resetMoveRank(boolean job) throws SQLException {
         String query = "UPDATE characters SET " + (job ? "jobRankMove = 0" : "rankMove = 0");
-        try (Connection con = DatabaseConnection.getConnection()) {
-            PreparedStatement reset = con.prepareStatement(query);
+        try (Connection con = DatabaseConnection.getConnection();
+             PreparedStatement reset = con.prepareStatement(query)) {
             reset.executeUpdate();
         }
     }

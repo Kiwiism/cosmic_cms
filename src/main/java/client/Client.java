@@ -1089,6 +1089,12 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     private void clear() {
+        try {
+            closePlayerScriptInteractions();
+        } catch (RuntimeException e) {
+            log.warn("Failed to dispose player script interactions during client cleanup", e);
+        }
+
         // player hard reference removal thanks to Steve (kaito1410)
         if (this.player != null) {
             this.player.empty(true); // clears schedules and stuff
