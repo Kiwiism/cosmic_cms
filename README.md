@@ -6,7 +6,7 @@ This repository keeps the original Cosmic server setup guide below, but adds ope
 - **Database CMS**: a visual web interface for viewing and updating game database data such as mobs, items, maps, drops, shops, gachapon, accounts, characters, inventory, and storage.
 - **Server CMS**: a separate operations console for server-side configuration, command policy, world/rate settings, runtime diagnostics, and restart-applied overrides.
 - **Runtime hardening**: safer executor lifecycle, bounded background/persistence queues, runtime metrics, autosave backpressure, shutdown cleanup, and several static leak/consistency fixes.
-- **Command and staff tooling updates**: reorganized command access levels, CMS-visible command policy overrides, `@levelup`, AP/SP reset improvements, and removal of duplicate command registrations.
+- **Command and staff tooling updates**: reorganized command access levels, CMS-visible command policy overrides, AP/SP reset improvements, and removal of duplicate command registrations.
 
 The upstream Cosmic project remains the original source. This fork has been updated to make local administration, database editing, server configuration, and runtime diagnostics easier without manually editing raw database rows or Java files for routine operations.
 
