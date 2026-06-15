@@ -70,6 +70,7 @@ import server.life.SpawnPoint;
 import server.partyquest.CarnivalFactory;
 import server.partyquest.CarnivalFactory.MCSkill;
 import server.partyquest.GuardianSpawnPoint;
+import server.runtime.RuntimeMetrics;
 import tools.PacketCreator;
 import tools.Pair;
 import tools.Randomizer;
@@ -100,6 +101,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class MapleMap {
@@ -3140,8 +3142,12 @@ public class MapleMap {
     public void movePlayer(Character player, Point newPosition) {
         player.setPosition(newPosition);
 
+        int visibleCount = 0;
+        int rangeCount = 0;
+        long visibilityStart = System.nanoTime();
         try {
             MapObject[] visibleObjects = player.getVisibleMapObjects();
+            visibleCount = visibleObjects.length;
 
             Map<Integer, MapObject> mapObjects = getCopyMapObjects();
             for (MapObject mo : visibleObjects) {
@@ -3154,14 +3160,24 @@ public class MapleMap {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Failed to update movement visibility for {} on map {}", player.getName(), mapid, e);
         }
 
-        for (MapObject mo : getMapObjectsInRange(player.getPosition(), getRangedDistance(), rangedMapobjectTypes)) {
+        List<MapObject> rangeObjects = getMapObjectsInRange(player.getPosition(), getRangedDistance(), rangedMapobjectTypes);
+        rangeCount = rangeObjects.size();
+        for (MapObject mo : rangeObjects) {
             if (!player.isMapObjectVisible(mo)) {
                 mo.sendSpawnData(player.getClient());
                 player.addVisibleMapObject(mo);
             }
+        }
+        long elapsedMillis = NANOSECONDS.toMillis(System.nanoTime() - visibilityStart);
+        RuntimeMetrics.getInstance().recordMovementVisibility(elapsedMillis, visibleCount, rangeCount,
+                YamlConfig.config.server.MOVEMENT_VISIBILITY_WARNING_MS);
+        if (YamlConfig.config.server.MOVEMENT_DIAGNOSTICS
+                && elapsedMillis >= YamlConfig.config.server.MOVEMENT_VISIBILITY_WARNING_MS) {
+            log.warn("Movement visibility scan for {} on map {} took {} ms (visible={}, range={})",
+                    player.getName(), mapid, elapsedMillis, visibleCount, rangeCount);
         }
     }
 

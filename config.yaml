@@ -180,6 +180,10 @@ server:
     SLOW_PACKET_WARNING_MS: 100
     SLOW_TASK_WARNING_MS: 250
     RUNTIME_HEALTH_LOG_INTERVAL_MS: 60000
+    MOVEMENT_DIAGNOSTICS: false          # Enable focused movement timing logs while investigating client snap/stutter.
+    MOVEMENT_GAP_WARNING_MS: 250         # Warn when a player's movement packets arrive this far apart.
+    MOVEMENT_HANDLER_WARNING_MS: 10       # Warn when movement packet handling reaches this duration.
+    MOVEMENT_VISIBILITY_WARNING_MS: 10    # Warn when map-object visibility refresh reaches this duration.
     AUTOSAVE_BATCH_INTERVAL_MS: 30000
     AUTOSAVE_BATCH_SIZE: 25
     AUTOSAVE_CHARACTER_INTERVAL_MS: 3600000

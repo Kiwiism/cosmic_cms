@@ -27,6 +27,8 @@ import config.YamlConfig;
 import net.AbstractPacketHandler;
 import net.packet.InPacket;
 import net.server.Server;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.PacketCreator;
 
 import java.util.List;
@@ -36,6 +38,7 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 public final class ViewAllCharHandler extends AbstractPacketHandler {
+    private static final Logger log = LoggerFactory.getLogger(ViewAllCharHandler.class);
     private static final int CHARACTER_LIMIT = 60; // Client will crash if sending 61 or more characters
 
     @Override
@@ -60,7 +63,8 @@ public final class ViewAllCharHandler extends AbstractPacketHandler {
                     c.sendPacket(PacketCreator.showAllCharacterInfo(worldId, chrs, usePic))
             );
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Failed to load view-all character list for account {}", c.getAccID(), e);
+            c.sendPacket(PacketCreator.showAllCharacter(0, 0));
         }
     }
     

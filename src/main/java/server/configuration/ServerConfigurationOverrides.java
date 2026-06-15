@@ -68,6 +68,10 @@ public final class ServerConfigurationOverrides {
         longValue("server.runtime.slowPacketWarningMs", value -> config.SLOW_PACKET_WARNING_MS = value);
         longValue("server.runtime.slowTaskWarningMs", value -> config.SLOW_TASK_WARNING_MS = value);
         longValue("server.runtime.healthLogIntervalMs", value -> config.RUNTIME_HEALTH_LOG_INTERVAL_MS = value);
+        bool("server.runtime.movementDiagnostics", value -> config.MOVEMENT_DIAGNOSTICS = value);
+        longValue("server.runtime.movementGapWarningMs", value -> config.MOVEMENT_GAP_WARNING_MS = value);
+        longValue("server.runtime.movementHandlerWarningMs", value -> config.MOVEMENT_HANDLER_WARNING_MS = value);
+        longValue("server.runtime.movementVisibilityWarningMs", value -> config.MOVEMENT_VISIBILITY_WARNING_MS = value);
         longValue("server.persistence.autosaveBatchIntervalMs", value -> config.AUTOSAVE_BATCH_INTERVAL_MS = value);
         integer("server.persistence.autosaveBatchSize", value -> config.AUTOSAVE_BATCH_SIZE = value);
         longValue("server.persistence.autosaveCharacterIntervalMs", value -> config.AUTOSAVE_CHARACTER_INTERVAL_MS = value);

@@ -150,6 +150,7 @@ public class Client extends ChannelInboundHandlerAdapter {
     private int visibleWorlds;
     private long lastNpcClick;
     private long lastPacket = System.currentTimeMillis();
+    private volatile long lastMovementPacket;
     private int lang = 0;
 
     public enum Type {
@@ -292,6 +293,12 @@ public class Client extends ChannelInboundHandlerAdapter {
 
     public long getLastPacket() {
         return lastPacket;
+    }
+
+    public long markMovementPacketAndGetGapMillis(long timestampMillis) {
+        long previous = lastMovementPacket;
+        lastMovementPacket = timestampMillis;
+        return previous == 0 ? 0 : timestampMillis - previous;
     }
 
     public void closeSession() {

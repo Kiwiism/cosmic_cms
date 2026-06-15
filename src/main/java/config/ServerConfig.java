@@ -27,6 +27,10 @@ public class ServerConfig {
     public long SLOW_PACKET_WARNING_MS = 100;
     public long SLOW_TASK_WARNING_MS = 250;
     public long RUNTIME_HEALTH_LOG_INTERVAL_MS = 60000;
+    public boolean MOVEMENT_DIAGNOSTICS = false;
+    public long MOVEMENT_GAP_WARNING_MS = 250;
+    public long MOVEMENT_HANDLER_WARNING_MS = 10;
+    public long MOVEMENT_VISIBILITY_WARNING_MS = 10;
     public long AUTOSAVE_BATCH_INTERVAL_MS = 30000;
     public int AUTOSAVE_BATCH_SIZE = 25;
     public long AUTOSAVE_CHARACTER_INTERVAL_MS = 3600000;

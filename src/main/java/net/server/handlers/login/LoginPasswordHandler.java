@@ -28,6 +28,8 @@ import net.PacketHandler;
 import net.packet.InPacket;
 import net.server.Server;
 import net.server.coordinator.session.Hwid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import server.configuration.ServerConfigurationOverrides;
 import tools.BCrypt;
 import tools.DatabaseConnection;
@@ -48,6 +50,7 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 
 public final class LoginPasswordHandler implements PacketHandler {
+    private static final Logger log = LoggerFactory.getLogger(LoginPasswordHandler.class);
 
     @Override
     public boolean validateState(Client c) {
@@ -93,7 +96,7 @@ public final class LoginPasswordHandler implements PacketHandler {
                 }
             } catch (SQLException | NoSuchAlgorithmException | UnsupportedEncodingException e) {
                 c.setAccID(-1);
-                e.printStackTrace();
+                log.warn("Failed to automatically register account {}", login, e);
             } finally {
                 loginok = c.login(login, pwd, hwid);
             }
@@ -106,7 +109,7 @@ public final class LoginPasswordHandler implements PacketHandler {
                 ps.setString(2, login);
                 ps.executeUpdate();
             } catch (SQLException e) {
-                e.printStackTrace();
+                log.warn("Failed to migrate account {} password to BCrypt", login, e);
             } finally {
                 loginok = (loginok == -10) ? 0 : 23;
             }

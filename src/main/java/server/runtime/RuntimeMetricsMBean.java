@@ -27,6 +27,28 @@ public interface RuntimeMetricsMBean {
 
     long getCharacterSaveMillis();
 
+    long getMovementPackets();
+
+    long getSlowMovementHandlers();
+
+    long getSlowMovementGaps();
+
+    long getSlowMovementVisibilityScans();
+
+    long getMovementHandlerMillis();
+
+    long getMovementVisibilityMillis();
+
+    long getMaxMovementHandlerMillis();
+
+    long getMaxMovementGapMillis();
+
+    long getMaxMovementVisibilityMillis();
+
+    long getMaxMovementVisibleObjects();
+
+    long getMaxMovementRangeObjects();
+
     int getBackgroundQueueDepth();
 
     int getPersistenceQueueDepth();

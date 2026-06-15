@@ -91,7 +91,8 @@ public class ViewAllCharSelectedWithPicHandler extends AbstractPacketHandler {
             try {
                 c.sendPacket(PacketCreator.getServerIP(InetAddress.getByName(socket[0]), Integer.parseInt(socket[1]), charId));
             } catch (UnknownHostException e) {
-                e.printStackTrace();
+                log.warn("Failed to resolve channel endpoint {}:{} for character {}", socket[0], socket[1], charId, e);
+                c.sendPacket(PacketCreator.getAfterLoginError(10));
             }
 
         } else {

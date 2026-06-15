@@ -4,6 +4,7 @@ import client.Client;
 import client.command.Command;
 import net.server.Server;
 import net.server.channel.Channel;
+import server.runtime.RuntimeMetrics;
 
 public class ServerHealthCommand extends Command {
     {
@@ -28,5 +29,18 @@ public class ServerHealthCommand extends Command {
                 + " MB committed / " + maxMb + " MB max.");
         client.getPlayer().message("World players online: " + online
                 + ", JVM threads: " + Thread.activeCount());
+        RuntimeMetrics metrics = RuntimeMetrics.getInstance();
+        client.getPlayer().message("Packets: " + metrics.getPacketsHandled()
+                + " handled, " + metrics.getSlowPackets() + " slow. Movement: "
+                + metrics.getMovementPackets() + " packets, max handler "
+                + metrics.getMaxMovementHandlerMillis() + " ms, max gap "
+                + metrics.getMaxMovementGapMillis() + " ms.");
+        client.getPlayer().message("Queues: gameplay " + metrics.getGameplaySchedulerQueueDepth()
+                + ", maintenance " + metrics.getMaintenanceSchedulerQueueDepth()
+                + ", background " + metrics.getBackgroundQueueDepth()
+                + ", persistence " + metrics.getPersistenceQueueDepth() + ".");
+        client.getPlayer().message("Persistence: " + metrics.getCharacterSavesCompleted()
+                + " saves, " + metrics.getCharacterSaveFailures() + " failures. DB wait total "
+                + metrics.getDatabaseConnectionWaitMillis() + " ms.");
     }
 }

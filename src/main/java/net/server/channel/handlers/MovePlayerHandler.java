@@ -22,13 +22,34 @@
 package net.server.channel.handlers;
 
 import client.Client;
+import config.YamlConfig;
 import net.packet.InPacket;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import server.runtime.RuntimeMetrics;
 import tools.PacketCreator;
 import tools.exceptions.EmptyMovementException;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
+
 public final class MovePlayerHandler extends AbstractMovementPacketHandler {
+    private static final Logger log = LoggerFactory.getLogger(MovePlayerHandler.class);
+
     @Override
     public final void handlePacket(InPacket p, Client c) {
+        long handlerStart = System.nanoTime();
+        RuntimeMetrics metrics = RuntimeMetrics.getInstance();
+        boolean diagnostics = YamlConfig.config.server.MOVEMENT_DIAGNOSTICS;
+        if (diagnostics) {
+            long gapMillis = c.markMovementPacketAndGetGapMillis(System.currentTimeMillis());
+            metrics.recordMovementGap(gapMillis, YamlConfig.config.server.MOVEMENT_GAP_WARNING_MS);
+            if (gapMillis >= YamlConfig.config.server.MOVEMENT_GAP_WARNING_MS) {
+                log.warn("Movement packet gap {} ms for {} on map {}", gapMillis,
+                        c.getPlayer() == null ? "?" : c.getPlayer().getName(),
+                        c.getPlayer() == null ? "?" : c.getPlayer().getMapId());
+            }
+        }
+
         p.skip(9);
         try {   // thanks Sa for noticing empty movement sequences crashing players
             int movementDataStart = p.getPosition();
@@ -43,6 +64,14 @@ public final class MovePlayerHandler extends AbstractMovementPacketHandler {
                 c.getPlayer().getMap().broadcastMessage(c.getPlayer(), PacketCreator.movePlayer(c.getPlayer().getId(), p, movementDataLength), false);
             }
         } catch (EmptyMovementException e) {
+        } finally {
+            long elapsedMillis = NANOSECONDS.toMillis(System.nanoTime() - handlerStart);
+            metrics.recordMovementPacket(elapsedMillis, YamlConfig.config.server.MOVEMENT_HANDLER_WARNING_MS);
+            if (diagnostics && elapsedMillis >= YamlConfig.config.server.MOVEMENT_HANDLER_WARNING_MS) {
+                log.warn("Movement handler took {} ms for {} on map {}", elapsedMillis,
+                        c.getPlayer() == null ? "?" : c.getPlayer().getName(),
+                        c.getPlayer() == null ? "?" : c.getPlayer().getMapId());
+            }
         }
     }
 }
