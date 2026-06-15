@@ -18,7 +18,7 @@ public class WorldConfig {
     public int default_use_slots = 24;
     public int default_setup_slots = 24;
     public int default_etc_slots = 24;
-    public int default_storage_slots = 48;
+    public int default_storage_slots = 8;
 
     public int defaultGmLevel() {
         return clamp(default_gm_level, 0, 6);

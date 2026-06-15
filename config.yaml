@@ -7,7 +7,7 @@ worlds:
     server_message: ""
     event_message: Scania!
     why_am_i_recommended: Welcome to Scania!
-    channels: 1
+    channels: 3
     exp_rate: 1
     meso_rate: 1
     drop_rate: 1
@@ -20,7 +20,7 @@ worlds:
     default_use_slots: 24                   #Default USE inventory slots assigned only when creating new characters.
     default_setup_slots: 24                 #Default SETUP inventory slots assigned only when creating new characters.
     default_etc_slots: 24                   #Default ETC inventory slots assigned only when creating new characters.
-    default_storage_slots: 48               #Default account storage slots when storage is first created for this world.
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Bera 1
   - flag: 0
@@ -28,6 +28,7 @@ worlds:
     event_message: Bera!
     why_am_i_recommended: Welcome to Bera!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Broa 2
   - flag: 0
@@ -35,6 +36,7 @@ worlds:
     event_message: Broa!
     why_am_i_recommended: Welcome to Broa!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Windia 3
   - flag: 0
@@ -42,6 +44,7 @@ worlds:
     event_message: Windia!
     why_am_i_recommended: Welcome to Windia!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Khaini 4
   - flag: 0
@@ -49,6 +52,7 @@ worlds:
     event_message: Khaini!
     why_am_i_recommended: Welcome to Khaini!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Bellocan 5
   - flag: 0
@@ -56,6 +60,7 @@ worlds:
     event_message: Bellocan!
     why_am_i_recommended: Welcome to Bellocan!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Mardia 6
   - flag: 0
@@ -63,6 +68,7 @@ worlds:
     event_message: Mardia!
     why_am_i_recommended: Welcome to Mardia!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Kradia 7
   - flag: 0
@@ -70,6 +76,7 @@ worlds:
     event_message: Kradia!
     why_am_i_recommended: Welcome to Kradia!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Yellonde 8
   - flag: 0
@@ -77,6 +84,7 @@ worlds:
     event_message: Yellonde!
     why_am_i_recommended: Welcome to Yellonde!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Demethos 9
   - flag: 0
@@ -84,6 +92,7 @@ worlds:
     event_message: Demethos!
     why_am_i_recommended: Welcome to Demethos!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Galicia 10
   - flag: 0
@@ -91,6 +100,7 @@ worlds:
     event_message: Galicia!
     why_am_i_recommended: Welcome to Galicia!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Kastia 11
   - flag: 0
@@ -98,6 +108,7 @@ worlds:
     event_message: Kastia!
     why_am_i_recommended: Welcome to Kastia!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Judis 12
   - flag: 0
@@ -105,6 +116,7 @@ worlds:
     event_message: Judis!
     why_am_i_recommended: Welcome to Judis!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Arcenia 13
   - flag: 0
@@ -112,6 +124,7 @@ worlds:
     event_message: Arcenia!
     why_am_i_recommended: Welcome to Arcenia!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Plana 14
   - flag: 0
@@ -119,6 +132,7 @@ worlds:
     event_message: Plana!
     why_am_i_recommended: Welcome to Plana!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for El Nido 15
   - flag: 0
@@ -126,6 +140,7 @@ worlds:
     event_message: El Nido!
     why_am_i_recommended: Welcome to El Nido!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Kalluna 16
   - flag: 0
@@ -133,6 +148,7 @@ worlds:
     event_message: Kalluna!
     why_am_i_recommended: Welcome to Kalluna!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Stius 17
   - flag: 0
@@ -140,6 +156,7 @@ worlds:
     event_message: Stius!
     why_am_i_recommended: Welcome to Stius!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Croa 18
   - flag: 0
@@ -147,6 +164,7 @@ worlds:
     event_message: Croa!
     why_am_i_recommended: Welcome to Croa!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Zenith 19
   - flag: 0
@@ -154,6 +172,7 @@ worlds:
     event_message: Zenith!
     why_am_i_recommended: Welcome to Zenith!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
     #Properties for Medere 20
   - flag: 0
@@ -161,6 +180,7 @@ worlds:
     event_message: Medere!
     why_am_i_recommended: Welcome to Medere!
     channels: 3
+    default_storage_slots: 8                #Default account storage slots when storage is first created for this world.
 
 
 server:
@@ -168,7 +188,7 @@ server:
     DB_URL_FORMAT: "jdbc:mysql://%s:3306/cosmic" # If the docker ENV for DB_HOST is anything but "db", this string format should be changed from 3306 to 3307 (or whichever port it was changed to in docker) 
     DB_HOST: "localhost" 
     DB_USER: "root"
-    DB_PASS: "root"
+    DB_PASS: ""
     INIT_CONNECTION_POOL_TIMEOUT: 90    # Seconds
     DB_MAX_POOL_SIZE: 16                 # Tune against measured MySQL capacity, not player count.
     DB_CONNECTION_TIMEOUT_MS: 10000
