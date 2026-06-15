@@ -13,7 +13,9 @@ records such as drops, shops, accounts, inventories, and gachapon.
 
 Copy `.env.example` to `.env` and set the MySQL password. The JDBC URL includes
 `createDatabaseIfNotExist=true`, so the API creates the database and Liquibase
-tables when the MySQL user has permission.
+creates every required table when the MySQL user has `CREATE` permission for databases
+and tables. Existing schemas and records are preserved; subsequent startups apply only
+Liquibase migrations that have not already run.
 
 ## Start
 

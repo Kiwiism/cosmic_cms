@@ -8,7 +8,7 @@ server:
 
 spring:
   datasource:
-    url: ${DATABASE_CMS_DB_URL:jdbc:mysql://localhost:3306/cosmic_database_cms}
+    url: ${DATABASE_CMS_DB_URL:jdbc:mysql://localhost:3306/cosmic_database_cms?createDatabaseIfNotExist=true}
     username: ${DATABASE_CMS_DB_USER:root}
     password: ${DATABASE_CMS_DB_PASSWORD:}
   liquibase:

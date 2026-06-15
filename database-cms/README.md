@@ -29,6 +29,11 @@ Stop them with `.\database-cms\stop-database-cms.cmd`.
 The launcher uses a system Node.js 22 installation when available and otherwise uses the Codex
 bundled Node runtime already installed on this workstation. Docker deployments include both runtimes.
 
+On first startup, the JDBC connection creates `cosmic_database_cms` when it does not exist,
+then Liquibase creates every required table and applies all migrations. The configured MySQL
+user must have `CREATE` permission for databases and tables. Existing schemas and records are
+preserved; subsequent startups apply only migrations that have not already run.
+
 ## WZ catalog sources
 
 The default import root is `<project>\wz`. The importer currently reads:
@@ -48,7 +53,8 @@ The map catalog powers region filters, regional monster browsing, monster spawn-
 shop locations, and gachapon placement information. Unknown or custom maps remain visible under the
 `Unclassified` region rather than being silently omitted.
 
-The default local configuration expects both schemas on MySQL at `localhost:3306`:
+The default local configuration expects the game schema on MySQL at `localhost:3306` and
+automatically creates the CMS schema when needed:
 
 - `cosmic`: existing game data
 - `cosmic_database_cms`: CMS-owned data
