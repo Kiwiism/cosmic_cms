@@ -1,5 +1,6 @@
 package server.configuration;
 
+import config.YamlConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tools.DatabaseConnection;
@@ -22,6 +23,12 @@ public final class CommandPolicyOverrides {
     }
 
     public static void load() {
+        if (!YamlConfig.config.server.USE_SERVER_CMS_OVERRIDES) {
+            policies = Map.of();
+            log.info("Server CMS command policies disabled by config.yaml");
+            return;
+        }
+
         Map<String, Policy> loaded = new HashMap<>();
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement(

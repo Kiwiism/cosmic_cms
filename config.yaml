@@ -166,6 +166,7 @@ server:
     INIT_CONNECTION_POOL_TIMEOUT: 90    # Seconds
     DB_MAX_POOL_SIZE: 16                 # Tune against measured MySQL capacity, not player count.
     DB_CONNECTION_TIMEOUT_MS: 10000
+    USE_SERVER_CMS_OVERRIDES: true       # Set false to ignore all Server CMS settings and command policies.
 
     # Runtime hardening and backpressure
     NETTY_BOSS_THREADS: 2

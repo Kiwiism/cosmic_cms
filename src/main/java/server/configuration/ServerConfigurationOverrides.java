@@ -106,6 +106,11 @@ public final class ServerConfigurationOverrides {
     }
 
     public static void applyStartupOverrides() {
+        if (!YamlConfig.config.server.USE_SERVER_CMS_OVERRIDES) {
+            log.info("Server CMS startup overrides disabled by config.yaml");
+            return;
+        }
+
         int applied = 0;
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement("""

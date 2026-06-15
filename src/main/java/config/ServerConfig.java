@@ -13,6 +13,7 @@ public class ServerConfig {
     public int INIT_CONNECTION_POOL_TIMEOUT;
     public int DB_MAX_POOL_SIZE = 16;
     public int DB_CONNECTION_TIMEOUT_MS = 10000;
+    public boolean USE_SERVER_CMS_OVERRIDES = true;
 
     // Runtime hardening
     public int NETTY_BOSS_THREADS = 2;
