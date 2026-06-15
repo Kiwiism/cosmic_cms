@@ -100,6 +100,7 @@ import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static java.util.concurrent.TimeUnit.SECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class Client extends ChannelInboundHandlerAdapter {
     private static final Logger log = LoggerFactory.getLogger(Client.class);
@@ -230,7 +231,7 @@ public class Client extends ChannelInboundHandlerAdapter {
                         chrInfo, getAccountName(), packet, t);
                 //client.sendPacket(PacketCreator.enableActions());//bugs sometimes
             } finally {
-                long elapsed = java.time.Duration.ofNanos(System.nanoTime() - handlerStart).toMillis();
+                long elapsed = NANOSECONDS.toMillis(System.nanoTime() - handlerStart);
                 RuntimeMetrics.getInstance().recordPacket(elapsed, YamlConfig.config.server.SLOW_PACKET_WARNING_MS);
                 if (elapsed >= YamlConfig.config.server.SLOW_PACKET_WARNING_MS) {
                     log.warn("Packet handler {} took {} ms for opcode {}", handler.getClass().getSimpleName(),

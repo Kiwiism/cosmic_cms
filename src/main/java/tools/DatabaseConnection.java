@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -36,7 +37,7 @@ public class DatabaseConnection {
         long start = System.nanoTime();
         Connection connection = dataSource.getConnection();
         RuntimeMetrics.getInstance().recordDatabaseConnection(
-                Duration.ofNanos(System.nanoTime() - start).toMillis());
+                NANOSECONDS.toMillis(System.nanoTime() - start));
         return connection;
     }
 

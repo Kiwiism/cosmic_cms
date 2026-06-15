@@ -6,26 +6,26 @@ import org.slf4j.LoggerFactory;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntSupplier;
 
 public final class RuntimeMetrics implements RuntimeMetricsMBean {
     private static final Logger log = LoggerFactory.getLogger(RuntimeMetrics.class);
     private static final RuntimeMetrics instance = new RuntimeMetrics();
 
-    private final AtomicLong packetsHandled = new AtomicLong();
-    private final AtomicLong slowPackets = new AtomicLong();
-    private final AtomicLong scheduledTasksCompleted = new AtomicLong();
-    private final AtomicLong slowScheduledTasks = new AtomicLong();
-    private final AtomicLong rejectedTasks = new AtomicLong();
-    private final AtomicLong persistenceQueued = new AtomicLong();
-    private final AtomicLong persistenceCompleted = new AtomicLong();
-    private final AtomicLong persistenceRejected = new AtomicLong();
-    private final AtomicLong databaseConnectionsAcquired = new AtomicLong();
-    private final AtomicLong databaseConnectionWaitMillis = new AtomicLong();
-    private final AtomicLong characterSavesCompleted = new AtomicLong();
-    private final AtomicLong characterSaveFailures = new AtomicLong();
-    private final AtomicLong characterSaveMillis = new AtomicLong();
+    private final LongAdder packetsHandled = new LongAdder();
+    private final LongAdder slowPackets = new LongAdder();
+    private final LongAdder scheduledTasksCompleted = new LongAdder();
+    private final LongAdder slowScheduledTasks = new LongAdder();
+    private final LongAdder rejectedTasks = new LongAdder();
+    private final LongAdder persistenceQueued = new LongAdder();
+    private final LongAdder persistenceCompleted = new LongAdder();
+    private final LongAdder persistenceRejected = new LongAdder();
+    private final LongAdder databaseConnectionsAcquired = new LongAdder();
+    private final LongAdder databaseConnectionWaitMillis = new LongAdder();
+    private final LongAdder characterSavesCompleted = new LongAdder();
+    private final LongAdder characterSaveFailures = new LongAdder();
+    private final LongAdder characterSaveMillis = new LongAdder();
 
     private volatile IntSupplier backgroundQueueDepth = () -> 0;
     private volatile IntSupplier persistenceQueueDepth = () -> 0;
@@ -53,46 +53,46 @@ public final class RuntimeMetrics implements RuntimeMetricsMBean {
     }
 
     public void recordPacket(long elapsedMillis, long slowThresholdMillis) {
-        packetsHandled.incrementAndGet();
+        packetsHandled.increment();
         if (elapsedMillis >= slowThresholdMillis) {
-            slowPackets.incrementAndGet();
+            slowPackets.increment();
         }
     }
 
     public void recordScheduledTask(long elapsedMillis, long slowThresholdMillis) {
-        scheduledTasksCompleted.incrementAndGet();
+        scheduledTasksCompleted.increment();
         if (elapsedMillis >= slowThresholdMillis) {
-            slowScheduledTasks.incrementAndGet();
+            slowScheduledTasks.increment();
         }
     }
 
     public void recordRejectedTask() {
-        rejectedTasks.incrementAndGet();
+        rejectedTasks.increment();
     }
 
     public void recordPersistenceQueued() {
-        persistenceQueued.incrementAndGet();
+        persistenceQueued.increment();
     }
 
     public void recordPersistenceCompleted() {
-        persistenceCompleted.incrementAndGet();
+        persistenceCompleted.increment();
     }
 
     public void recordPersistenceRejected() {
-        persistenceRejected.incrementAndGet();
+        persistenceRejected.increment();
     }
 
     public void recordDatabaseConnection(long elapsedMillis) {
-        databaseConnectionsAcquired.incrementAndGet();
-        databaseConnectionWaitMillis.addAndGet(elapsedMillis);
+        databaseConnectionsAcquired.increment();
+        databaseConnectionWaitMillis.add(elapsedMillis);
     }
 
     public void recordCharacterSave(long elapsedMillis, boolean success) {
-        characterSaveMillis.addAndGet(elapsedMillis);
+        characterSaveMillis.add(elapsedMillis);
         if (success) {
-            characterSavesCompleted.incrementAndGet();
+            characterSavesCompleted.increment();
         } else {
-            characterSaveFailures.incrementAndGet();
+            characterSaveFailures.increment();
         }
     }
 
@@ -113,8 +113,8 @@ public final class RuntimeMetrics implements RuntimeMetricsMBean {
     }
 
     public String healthSnapshot() {
-        return "packets=" + packetsHandled.get()
-                + ", slowPackets=" + slowPackets.get()
+        return "packets=" + packetsHandled.sum()
+                + ", slowPackets=" + slowPackets.sum()
                 + ", schedulerQueue=" + getGameplaySchedulerQueueDepth()
                 + ", maintenanceQueue=" + getMaintenanceSchedulerQueueDepth()
                 + ", backgroundQueue=" + getBackgroundQueueDepth()
@@ -123,73 +123,73 @@ public final class RuntimeMetrics implements RuntimeMetricsMBean {
                 + ", persistence=" + getPersistenceActiveCount()
                 + ", gameplay=" + getGameplaySchedulerActiveCount()
                 + ", maintenance=" + getMaintenanceSchedulerActiveCount() + "}"
-                + ", saveFailures=" + characterSaveFailures.get()
-                + ", rejectedTasks=" + rejectedTasks.get();
+                + ", saveFailures=" + characterSaveFailures.sum()
+                + ", rejectedTasks=" + rejectedTasks.sum();
     }
 
     @Override
     public long getPacketsHandled() {
-        return packetsHandled.get();
+        return packetsHandled.sum();
     }
 
     @Override
     public long getSlowPackets() {
-        return slowPackets.get();
+        return slowPackets.sum();
     }
 
     @Override
     public long getScheduledTasksCompleted() {
-        return scheduledTasksCompleted.get();
+        return scheduledTasksCompleted.sum();
     }
 
     @Override
     public long getSlowScheduledTasks() {
-        return slowScheduledTasks.get();
+        return slowScheduledTasks.sum();
     }
 
     @Override
     public long getRejectedTasks() {
-        return rejectedTasks.get();
+        return rejectedTasks.sum();
     }
 
     @Override
     public long getPersistenceQueued() {
-        return persistenceQueued.get();
+        return persistenceQueued.sum();
     }
 
     @Override
     public long getPersistenceCompleted() {
-        return persistenceCompleted.get();
+        return persistenceCompleted.sum();
     }
 
     @Override
     public long getPersistenceRejected() {
-        return persistenceRejected.get();
+        return persistenceRejected.sum();
     }
 
     @Override
     public long getDatabaseConnectionsAcquired() {
-        return databaseConnectionsAcquired.get();
+        return databaseConnectionsAcquired.sum();
     }
 
     @Override
     public long getDatabaseConnectionWaitMillis() {
-        return databaseConnectionWaitMillis.get();
+        return databaseConnectionWaitMillis.sum();
     }
 
     @Override
     public long getCharacterSavesCompleted() {
-        return characterSavesCompleted.get();
+        return characterSavesCompleted.sum();
     }
 
     @Override
     public long getCharacterSaveFailures() {
-        return characterSaveFailures.get();
+        return characterSaveFailures.sum();
     }
 
     @Override
     public long getCharacterSaveMillis() {
-        return characterSaveMillis.get();
+        return characterSaveMillis.sum();
     }
 
     @Override

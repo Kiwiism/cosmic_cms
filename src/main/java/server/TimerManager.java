@@ -35,6 +35,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class TimerManager implements TimerManagerMBean {
     private static final Logger log = LoggerFactory.getLogger(TimerManager.class);
@@ -153,7 +154,7 @@ public class TimerManager implements TimerManagerMBean {
             } catch (Throwable t) {
                 log.error("Error in scheduled task", t);
             } finally {
-                long elapsed = java.time.Duration.ofNanos(System.nanoTime() - start).toMillis();
+                long elapsed = NANOSECONDS.toMillis(System.nanoTime() - start);
                 RuntimeMetrics.getInstance().recordScheduledTask(
                         elapsed, YamlConfig.config.server.SLOW_TASK_WARNING_MS);
                 if (elapsed >= YamlConfig.config.server.SLOW_TASK_WARNING_MS) {

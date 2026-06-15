@@ -192,6 +192,7 @@ import java.util.stream.Collectors;
 
 import static java.util.concurrent.TimeUnit.DAYS;
 import static java.util.concurrent.TimeUnit.MINUTES;
+import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class Character extends AbstractCharacterObject {
@@ -8975,7 +8976,7 @@ public class Character extends AbstractCharacterObject {
             log.error("Error saving chr {}, level: {}, job: {}", name, level, job.getId(), e);
         } finally {
             server.runtime.RuntimeMetrics.getInstance().recordCharacterSave(
-                    java.time.Duration.ofNanos(System.nanoTime() - saveStart).toMillis(), saveSucceeded);
+                    NANOSECONDS.toMillis(System.nanoTime() - saveStart), saveSucceeded);
         }
     }
 
