@@ -66,14 +66,15 @@ public class StorageProcessor {
                 case 4: { // Take out
                     byte type = p.readByte();
                     byte slot = p.readByte();
-                    if (slot < 0 || slot > storage.getSlots()) { // removal starts at zero
+                    InventoryType inventoryType = InventoryType.getByType(type);
+                    if (inventoryType == null || slot < 0 || slot >= storage.getSlots()) { // removal starts at zero
                         AutobanFactory.PACKET_EDIT.alert(c.getPlayer(), c.getPlayer().getName() + " tried to packet edit with storage.");
                         log.warn("Chr {} tried to work with storage slot {}", c.getPlayer().getName(), slot);
                         c.disconnect(true, false);
                         return;
                     }
 
-                    slot = storage.getSlot(InventoryType.getByType(type), slot);
+                    slot = storage.getSlot(inventoryType, slot);
                     Item item = storage.getItem(slot);
 
                     if (hasGMRestrictions(chr)) {
@@ -93,12 +94,11 @@ public class StorageProcessor {
                         if (chr.getMeso() < takeoutFee) {
                             c.sendPacket(PacketCreator.getStorageError((byte) 0x0B));
                             return;
-                        } else {
-                            chr.gainMeso(-takeoutFee, false);
                         }
 
                         if (InventoryManipulator.checkSpace(c, item.getItemId(), item.getQuantity(), item.getOwner())) {
                             if (storage.takeOut(item)) {
+                                chr.gainMeso(-takeoutFee, false);
                                 chr.setUsedStorage();
 
                                 KarmaManipulator.toggleKarmaFlagToUntradeable(item);
@@ -183,7 +183,11 @@ public class StorageProcessor {
                         KarmaManipulator.toggleKarmaFlagToUntradeable(item);
                         item.setQuantity(quantity);
 
-                        storage.store(item); // inside a critical section, "!(storage.isFull())" is still in effect...
+                        if (!storage.store(item)) {
+                            InventoryManipulator.addFromDrop(c, item, false);
+                            c.sendPacket(PacketCreator.getStorageError((byte) 0x11));
+                            return;
+                        }
                         chr.setUsedStorage();
 
                         String itemName = ii.getName(item.getItemId());

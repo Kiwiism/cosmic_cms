@@ -294,69 +294,84 @@ public class Trade {
 
     public static void completeTrade(Character chr) {
         Trade local = chr.getTrade();
+        if (local == null) {
+            return;
+        }
+
         Trade partner = local.getPartner();
-        if (local.checkCompleteHandshake()) {
-            local.fetchExchangedItems();
-            partner.fetchExchangedItems();
+        if (partner == null) {
+            return;
+        }
 
-            if (!local.fitsMeso()) {
-                cancelTrade(local.getChr(), TradeResult.UNSUCCESSFUL);
-                chr.message("There is not enough meso inventory space to complete the trade.");
-                partner.getChr().message("Partner does not have enough meso inventory space to complete the trade.");
-                return;
-            } else if (!partner.fitsMeso()) {
-                cancelTrade(partner.getChr(), TradeResult.UNSUCCESSFUL);
-                chr.message("Partner does not have enough meso inventory space to complete the trade.");
-                partner.getChr().message("There is not enough meso inventory space to complete the trade.");
+        Trade settlementLock = chr.getId() < partner.getChr().getId() ? local : partner;
+        synchronized (settlementLock) {
+            if (chr.getTrade() != local || partner.getChr().getTrade() != partner) {
                 return;
             }
 
-            if (!local.fitsInInventory()) {
-                if (local.fitsUniquesInInventory()) {
+            if (local.checkCompleteHandshake()) {
+                local.fetchExchangedItems();
+                partner.fetchExchangedItems();
+
+                if (!local.fitsMeso()) {
                     cancelTrade(local.getChr(), TradeResult.UNSUCCESSFUL);
-                    chr.message("There is not enough inventory space to complete the trade.");
-                    partner.getChr().message("Partner does not have enough inventory space to complete the trade.");
-                } else {
-                    cancelTrade(local.getChr(), TradeResult.UNSUCCESSFUL_UNIQUE_ITEM_LIMIT);
-                    partner.getChr().message("Partner cannot hold more than one one-of-a-kind item at a time.");
-                }
-                return;
-            } else if (!partner.fitsInInventory()) {
-                if (partner.fitsUniquesInInventory()) {
+                    chr.message("There is not enough meso inventory space to complete the trade.");
+                    partner.getChr().message("Partner does not have enough meso inventory space to complete the trade.");
+                    return;
+                } else if (!partner.fitsMeso()) {
                     cancelTrade(partner.getChr(), TradeResult.UNSUCCESSFUL);
-                    chr.message("Partner does not have enough inventory space to complete the trade.");
-                    partner.getChr().message("There is not enough inventory space to complete the trade.");
-                } else {
-                    cancelTrade(partner.getChr(), TradeResult.UNSUCCESSFUL_UNIQUE_ITEM_LIMIT);
-                    chr.message("Partner cannot hold more than one one-of-a-kind item at a time.");
-                }
-                return;
-            }
-
-            if (local.getChr().getLevel() < 15) {
-                if (local.getChr().getMesosTraded() + local.exchangeMeso > 1000000) {
-                    cancelTrade(local.getChr(), TradeResult.NO_RESPONSE);
-                    local.getChr().sendPacket(PacketCreator.serverNotice(1, "Characters under level 15 may not trade more than 1 million mesos per day."));
+                    chr.message("Partner does not have enough meso inventory space to complete the trade.");
+                    partner.getChr().message("There is not enough meso inventory space to complete the trade.");
                     return;
-                } else {
-                    local.getChr().addMesosTraded(local.exchangeMeso);
                 }
-            } else if (partner.getChr().getLevel() < 15) {
-                if (partner.getChr().getMesosTraded() + partner.exchangeMeso > 1000000) {
-                    cancelTrade(partner.getChr(), TradeResult.NO_RESPONSE);
-                    partner.getChr().sendPacket(PacketCreator.serverNotice(1, "Characters under level 15 may not trade more than 1 million mesos per day."));
+
+                if (!local.fitsInInventory()) {
+                    if (local.fitsUniquesInInventory()) {
+                        cancelTrade(local.getChr(), TradeResult.UNSUCCESSFUL);
+                        chr.message("There is not enough inventory space to complete the trade.");
+                        partner.getChr().message("Partner does not have enough inventory space to complete the trade.");
+                    } else {
+                        cancelTrade(local.getChr(), TradeResult.UNSUCCESSFUL_UNIQUE_ITEM_LIMIT);
+                        partner.getChr().message("Partner cannot hold more than one one-of-a-kind item at a time.");
+                    }
                     return;
-                } else {
-                    partner.getChr().addMesosTraded(partner.exchangeMeso);
+                } else if (!partner.fitsInInventory()) {
+                    if (partner.fitsUniquesInInventory()) {
+                        cancelTrade(partner.getChr(), TradeResult.UNSUCCESSFUL);
+                        chr.message("Partner does not have enough inventory space to complete the trade.");
+                        partner.getChr().message("There is not enough inventory space to complete the trade.");
+                    } else {
+                        cancelTrade(partner.getChr(), TradeResult.UNSUCCESSFUL_UNIQUE_ITEM_LIMIT);
+                        chr.message("Partner cannot hold more than one one-of-a-kind item at a time.");
+                    }
+                    return;
                 }
+
+                if (local.getChr().getLevel() < 15) {
+                    if (local.getChr().getMesosTraded() + local.exchangeMeso > 1000000) {
+                        cancelTrade(local.getChr(), TradeResult.NO_RESPONSE);
+                        local.getChr().sendPacket(PacketCreator.serverNotice(1, "Characters under level 15 may not trade more than 1 million mesos per day."));
+                        return;
+                    } else {
+                        local.getChr().addMesosTraded(local.exchangeMeso);
+                    }
+                } else if (partner.getChr().getLevel() < 15) {
+                    if (partner.getChr().getMesosTraded() + partner.exchangeMeso > 1000000) {
+                        cancelTrade(partner.getChr(), TradeResult.NO_RESPONSE);
+                        partner.getChr().sendPacket(PacketCreator.serverNotice(1, "Characters under level 15 may not trade more than 1 million mesos per day."));
+                        return;
+                    } else {
+                        partner.getChr().addMesosTraded(partner.exchangeMeso);
+                    }
+                }
+
+                logTrade(local, partner);
+                local.completeTrade();
+                partner.completeTrade();
+
+                partner.getChr().setTrade(null);
+                chr.setTrade(null);
             }
-
-            logTrade(local, partner);
-            local.completeTrade();
-            partner.completeTrade();
-
-            partner.getChr().setTrade(null);
-            chr.setTrade(null);
         }
     }
 

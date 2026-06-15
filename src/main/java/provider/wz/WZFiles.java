@@ -18,7 +18,10 @@ public enum WZFiles {
     SOUND("Sound"),
     UI("UI");
 
-    public static final String DIRECTORY = getWzDirectory();
+    /**
+     * Legacy default used by old standalone tools. Runtime callers should use {@link #getFile()}.
+     */
+    public static final String DIRECTORY = "wz";
 
     private final String fileName;
 
@@ -27,7 +30,7 @@ public enum WZFiles {
     }
 
     public Path getFile() {
-        return Path.of(DIRECTORY, fileName);
+        return Path.of(getWzDirectory(), fileName);
     }
 
     public String getFilePath() {

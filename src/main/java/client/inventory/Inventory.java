@@ -105,7 +105,7 @@ public class Inventory implements Iterable<Item> {
     public Collection<Item> list() {
         lock.lock();
         try {
-            return Collections.unmodifiableCollection(inventory.values());
+            return Collections.unmodifiableList(new ArrayList<>(inventory.values()));
         } finally {
             lock.unlock();
         }
@@ -296,16 +296,28 @@ public class Inventory implements Iterable<Item> {
     }
 
     public void removeItem(short slot, short quantity, boolean allowZero) {
-        Item item = getItem(slot);
-        if (item == null) {// TODO is it ok not to throw an exception here?
+        if (quantity <= 0) {
             return;
         }
-        item.setQuantity((short) (item.getQuantity() - quantity));
-        if (item.getQuantity() < 0) {
-            item.setQuantity((short) 0);
+
+        Item removedItem = null;
+        lock.lock();
+        try {
+            Item item = inventory.get(slot);
+            if (item == null) {
+                return;
+            }
+
+            item.setQuantity((short) Math.max(0, item.getQuantity() - quantity));
+            if (item.getQuantity() == 0 && !allowZero) {
+                removedItem = inventory.remove(slot);
+            }
+        } finally {
+            lock.unlock();
         }
-        if (item.getQuantity() == 0 && !allowZero) {
-            removeSlot(slot);
+
+        if (removedItem != null && ItemConstants.isRateCoupon(removedItem.getItemId())) {
+            ThreadManager.getInstance().newTask(() -> owner.updateCouponRates());
         }
     }
 

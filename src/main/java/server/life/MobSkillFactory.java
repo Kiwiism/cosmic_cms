@@ -28,6 +28,7 @@ import provider.DataTool;
 import provider.wz.WZFiles;
 
 import java.awt.*;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -44,8 +45,8 @@ import static java.util.concurrent.TimeUnit.SECONDS;
  */
 public class MobSkillFactory {
     private static final Map<String, MobSkill> mobSkills = new HashMap<>();
-    private static final DataProvider dataSource = DataProviderFactory.getDataProvider(WZFiles.SKILL);
-    private static final Data skillRoot = dataSource.getData("MobSkill.img");
+    private static Path loadedSkillPath;
+    private static Data skillRoot;
     private static final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
     private static final Lock readLock = readWriteLock.readLock();
     private static final Lock writeLock = readWriteLock.writeLock();
@@ -73,6 +74,7 @@ public class MobSkillFactory {
     private static Optional<MobSkill> loadMobSkill(final MobSkillType type, final int level) {
         writeLock.lock();
         try {
+            refreshDataSourceIfNeeded();
             MobSkill existingMs = mobSkills.get(createKey(type, level));
             if (existingMs != null) {
                 return Optional.of(existingMs);
@@ -131,6 +133,18 @@ public class MobSkillFactory {
         } finally {
             writeLock.unlock();
         }
+    }
+
+    private static void refreshDataSourceIfNeeded() {
+        Path skillPath = WZFiles.SKILL.getFile().toAbsolutePath().normalize();
+        if (skillPath.equals(loadedSkillPath) && skillRoot != null) {
+            return;
+        }
+
+        DataProvider dataSource = DataProviderFactory.getDataProvider(WZFiles.SKILL);
+        skillRoot = dataSource.getData("MobSkill.img");
+        loadedSkillPath = skillPath;
+        mobSkills.clear();
     }
 
     private static String createKey(MobSkillType type, int skillLevel) {

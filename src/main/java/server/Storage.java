@@ -44,6 +44,7 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -52,8 +53,8 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public class Storage {
     private static final Logger log = LoggerFactory.getLogger(Storage.class);
-    private static final Map<Integer, Integer> trunkGetCache = new HashMap<>();
-    private static final Map<Integer, Integer> trunkPutCache = new HashMap<>();
+    private static final Map<Integer, Integer> trunkGetCache = new ConcurrentHashMap<>();
+    private static final Map<Integer, Integer> trunkPutCache = new ConcurrentHashMap<>();
 
     private final int id;
     private int currentNpcid;
@@ -69,19 +70,16 @@ public class Storage {
         this.meso = meso;
     }
 
-    private static Storage create(int id, int world) throws SQLException {
+    private static void create(int id, int world) throws SQLException {
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement("INSERT INTO storages (accountid, world, slots, meso) VALUES (?, ?, 48, 0)")) {
             ps.setInt(1, id);
             ps.setInt(2, world);
             ps.executeUpdate();
         }
-
-        return loadOrCreateFromDB(id, world);
     }
 
-    public static Storage loadOrCreateFromDB(int id, int world) {
-        Storage ret;
+    private static Storage loadFromDB(int id, int world) throws SQLException {
         try (Connection con = DatabaseConnection.getConnection();
              PreparedStatement ps = con.prepareStatement("SELECT storageid, slots, meso FROM storages WHERE accountid = ? AND world = ?")) {
             ps.setInt(1, id);
@@ -89,16 +87,35 @@ public class Storage {
 
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    ret = new Storage(rs.getInt("storageid"), (byte) rs.getInt("slots"), rs.getInt("meso"));
+                    Storage ret = new Storage(rs.getInt("storageid"), (byte) rs.getInt("slots"), rs.getInt("meso"));
                     for (Pair<Item, InventoryType> item : ItemFactory.STORAGE.loadItems(ret.id, false)) {
                         ret.items.add(item.getLeft());
                     }
-                } else {
-                    ret = create(id, world);
+                    return ret;
                 }
             }
+        }
+        return null;
+    }
 
-            return ret;
+    public static Storage loadOrCreateFromDB(int id, int world) {
+        try {
+            Storage storage = loadFromDB(id, world);
+            if (storage != null) {
+                return storage;
+            }
+
+            synchronized (Storage.class) {
+                storage = loadFromDB(id, world);
+                if (storage == null) {
+                    create(id, world);
+                    storage = loadFromDB(id, world);
+                }
+                if (storage == null) {
+                    throw new SQLException("Storage row was not available after creation");
+                }
+                return storage;
+            }
         } catch (SQLException ex) { // exceptions leading to deploy null storages found thanks to Jefe
             log.error("SQL error occurred when trying to load storage for accId {}, world {}", id, GameConstants.WORLD_NAMES[world], ex);
             throw new RuntimeException(ex);
@@ -106,7 +123,12 @@ public class Storage {
     }
 
     public byte getSlots() {
-        return slots;
+        lock.lock();
+        try {
+            return slots;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public boolean canGainSlots(int slots) {
@@ -129,30 +151,40 @@ public class Storage {
         }
     }
 
-    public void saveToDB(Connection con) {
+    public void saveToDB(Connection con) throws SQLException {
+        int savedSlots;
+        int savedMeso;
+        List<Item> savedItems;
+        lock.lock();
         try {
-            try (PreparedStatement ps = con.prepareStatement("UPDATE storages SET slots = ?, meso = ? WHERE storageid = ?")) {
-                ps.setInt(1, slots);
-                ps.setInt(2, meso);
-                ps.setInt(3, id);
-                ps.executeUpdate();
-            }
-            List<Pair<Item, InventoryType>> itemsWithType = new ArrayList<>();
-
-            List<Item> list = getItems();
-            for (Item item : list) {
-                itemsWithType.add(new Pair<>(item, item.getInventoryType()));
-            }
-
-            ItemFactory.STORAGE.saveItems(itemsWithType, id, con);
-        } catch (SQLException ex) {
-            ex.printStackTrace();
+            savedSlots = slots;
+            savedMeso = meso;
+            savedItems = new ArrayList<>(items);
+        } finally {
+            lock.unlock();
         }
+
+        try (PreparedStatement ps = con.prepareStatement("UPDATE storages SET slots = ?, meso = ? WHERE storageid = ?")) {
+            ps.setInt(1, savedSlots);
+            ps.setInt(2, savedMeso);
+            ps.setInt(3, id);
+            ps.executeUpdate();
+        }
+        List<Pair<Item, InventoryType>> itemsWithType = new ArrayList<>();
+
+        for (Item item : savedItems) {
+            itemsWithType.add(new Pair<>(item, item.getInventoryType()));
+        }
+
+        ItemFactory.STORAGE.saveItems(itemsWithType, id, con);
     }
 
     public Item getItem(byte slot) {
         lock.lock();
         try {
+            if (slot < 0 || slot >= items.size()) {
+                return null;
+            }
             return items.get(slot);
         } finally {
             lock.unlock();
@@ -194,7 +226,7 @@ public class Storage {
     public List<Item> getItems() {
         lock.lock();
         try {
-            return Collections.unmodifiableList(items);
+            return Collections.unmodifiableList(new ArrayList<>(items));
         } finally {
             lock.unlock();
         }
@@ -215,10 +247,15 @@ public class Storage {
     public byte getSlot(InventoryType type, byte slot) {
         lock.lock();
         try {
+            List<Item> typedItems = typeItems.get(type);
+            if (typedItems == null || slot < 0 || slot >= typedItems.size()) {
+                return -1;
+            }
+
             byte ret = 0;
-            List<Item> storageItems = getItems();
-            for (Item item : storageItems) {
-                if (item == typeItems.get(type).get(slot)) {
+            Item selectedItem = typedItems.get(slot);
+            for (Item item : items) {
+                if (item == selectedItem) {
                     return ret;
                 }
                 ret++;
@@ -249,7 +286,7 @@ public class Storage {
 
             List<Item> storageItems = getItems();
             for (InventoryType type : InventoryType.values()) {
-                typeItems.put(type, new ArrayList<>(storageItems));
+                typeItems.put(type, new ArrayList<>(filterItems(type)));
             }
 
             currentNpcid = npcId;
@@ -285,7 +322,7 @@ public class Storage {
             items = msi.sortItems();
 
             for (InventoryType type : InventoryType.values()) {
-                typeItems.put(type, new ArrayList<>(items));
+                typeItems.put(type, new ArrayList<>(filterItems(type)));
             }
 
             c.sendPacket(PacketCreator.arrangeStorage(slots, items));
@@ -295,14 +332,24 @@ public class Storage {
     }
 
     public int getMeso() {
-        return meso;
+        lock.lock();
+        try {
+            return meso;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public void setMeso(int meso) {
         if (meso < 0) {
             throw new RuntimeException();
         }
-        this.meso = meso;
+        lock.lock();
+        try {
+            this.meso = meso;
+        } finally {
+            lock.unlock();
+        }
     }
 
     public void sendMeso(Client c) {

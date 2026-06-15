@@ -5,6 +5,7 @@ CREATE TABLE storages
     world     INT          NOT NULL,
     slots     INT          NOT NULL DEFAULT '0',
     meso      INT          NOT NULL DEFAULT '0',
+    UNIQUE KEY account_world (accountid, world),
     PRIMARY KEY (storageid)
 );
 
