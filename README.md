@@ -3,12 +3,12 @@ Cosmic CMS is a fork of [P0nk/Cosmic](https://github.com/P0nk/Cosmic), a server 
 
 This repository keeps the original Cosmic server setup guide below, but adds operational tooling around it:
 
-- **Database CMS**: a visual web interface for game database data such as mobs, items, maps, drops, shops, gachapon, accounts, characters, inventory, and storage.
+- **Database CMS**: a visual web interface for viewing and updating game database data such as mobs, items, maps, drops, shops, gachapon, accounts, characters, inventory, and storage.
 - **Server CMS**: a separate operations console for server-side configuration, command policy, world/rate settings, runtime diagnostics, and restart-applied overrides.
 - **Runtime hardening**: safer executor lifecycle, bounded background/persistence queues, runtime metrics, autosave backpressure, shutdown cleanup, and several static leak/consistency fixes.
 - **Command and staff tooling updates**: reorganized command access levels, CMS-visible command policy overrides, `@levelup`, AP/SP reset improvements, and removal of duplicate command registrations.
 
-The upstream Cosmic project remains the original source. This fork has been updated to make local administration, database editing, server configuration, and runtime diagnostics easier without directly editing the database or Java files for routine operations.
+The upstream Cosmic project remains the original source. This fork has been updated to make local administration, database editing, server configuration, and runtime diagnostics easier without manually editing raw database rows or Java files for routine operations.
 
 ## Fork-specific services
 
@@ -45,6 +45,8 @@ Stop it with:
 The first browser visit asks for an Owner account when no CMS users exist.
 
 Database CMS combines the MySQL game database with WZ XML catalog data from the local `wz` folder. It reads sources such as `String.wz`, `Character.wz`, `Item.wz`, `Mob.wz`, `Skill.wz`, and `Map.wz` to add names, descriptions, image paths, map regions, spawn information, skill levels, and item stat ranges around database rows.
+
+It can also update supported game database values through the interface. Editing workflows include autocomplete search, image-backed result suggestions, right-side detail docks, related-record navigation, and audit logging so updates such as mob drops, global drops, shop contents, shop prices/positions, inventory items, storage, and character/account fields are easier to make without opening a SQL editor. Drop and shop pages are designed for convenient drill-down navigation: for example, selecting an item can show which mobs drop it or which NPC shops sell it, and selecting a mob or shop opens the related editor with linked catalog context.
 
 ### Server CMS
 
