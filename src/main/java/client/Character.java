@@ -184,6 +184,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.regex.Pattern;
@@ -281,6 +282,8 @@ public class Character extends AbstractCharacterObject {
     private final Set<Monster> controlled = new LinkedHashSet<>();
     private final Map<Integer, String> entered = new LinkedHashMap<>();
     private final Set<MapObject> visibleMapObjects = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private final AtomicLong persistenceRevision = new AtomicLong(1);
+    private final AtomicLong savedPersistenceRevision = new AtomicLong();
     private final Map<Skill, SkillEntry> skills = new LinkedHashMap<>();
     private final Map<Integer, Integer> activeCoupons = new LinkedHashMap<>();
     private final Map<Integer, Integer> activeCouponRates = new LinkedHashMap<>();
@@ -8453,12 +8456,36 @@ public class Character extends AbstractCharacterObject {
         }
     }
 
+    public void markPersistenceDirty() {
+        persistenceRevision.incrementAndGet();
+    }
+
+    public boolean needsAutosave() {
+        return persistenceRevision.get() > savedPersistenceRevision.get();
+    }
+
+    public void queueAutosave() {
+        if (YamlConfig.config.server.USE_DIRTY_AUTOSAVE && !needsAutosave()) {
+            return;
+        }
+
+        CharacterSaveService service =
+                (CharacterSaveService) getWorldServer().getServiceAccess(WorldServices.SAVE_CHARACTER);
+        service.registerSaveCharacter(getId(), () -> saveCharToDB(false));
+    }
+
     //ItemFactory saveItems and monsterbook.saveCards are the most time consuming here.
     public synchronized void saveCharToDB(boolean notAutosave) {
         if (!loggedIn) {
             return;
         }
+        if (!notAutosave && YamlConfig.config.server.USE_DIRTY_AUTOSAVE && !needsAutosave()) {
+            return;
+        }
 
+        long saveRevision = persistenceRevision.get();
+        long saveStart = System.nanoTime();
+        boolean saveSucceeded = false;
         Calendar c = Calendar.getInstance();
         log.debug("Attempting to {} chr {}", notAutosave ? "save" : "autosave", name);
 
@@ -8845,6 +8872,8 @@ public class Character extends AbstractCharacterObject {
                 }
 
                 con.commit();
+                savedPersistenceRevision.accumulateAndGet(saveRevision, Math::max);
+                saveSucceeded = true;
             } catch (Exception e) {
                 con.rollback();
                 throw e;
@@ -8854,6 +8883,9 @@ public class Character extends AbstractCharacterObject {
             }
         } catch (Exception e) {
             log.error("Error saving chr {}, level: {}, job: {}", name, level, job.getId(), e);
+        } finally {
+            server.runtime.RuntimeMetrics.getInstance().recordCharacterSave(
+                    java.time.Duration.ofNanos(System.nanoTime() - saveStart).toMillis(), saveSucceeded);
         }
     }
 

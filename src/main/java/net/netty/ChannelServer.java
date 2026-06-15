@@ -2,8 +2,7 @@ package net.netty;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
-import io.netty.channel.EventLoopGroup;
-import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 public class ChannelServer extends AbstractServer {
@@ -19,11 +18,13 @@ public class ChannelServer extends AbstractServer {
 
     @Override
     public void start() {
-        EventLoopGroup parentGroup = new NioEventLoopGroup();
-        EventLoopGroup childGroup = new NioEventLoopGroup();
+        NettyServerRuntime runtime = NettyServerRuntime.getInstance();
         ServerBootstrap bootstrap = new ServerBootstrap()
-                .group(parentGroup, childGroup)
+                .group(runtime.acceptorGroup(), runtime.workerGroup())
                 .channel(NioServerSocketChannel.class)
+                .option(ChannelOption.SO_BACKLOG, 1024)
+                .childOption(ChannelOption.TCP_NODELAY, true)
+                .childOption(ChannelOption.SO_KEEPALIVE, true)
                 .childHandler(new ChannelServerInitializer(world, channel));
 
         this.nettyChannel = bootstrap.bind(port).syncUninterruptibly().channel();

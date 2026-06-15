@@ -19,38 +19,47 @@
 */
 package net.server.services.task.world;
 
-import net.server.services.BaseScheduler;
 import net.server.services.BaseService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import server.runtime.ServerExecutors;
+
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * @author Ronan
  */
 public class CharacterSaveService extends BaseService {
+    private static final Logger log = LoggerFactory.getLogger(CharacterSaveService.class);
 
-    CharacterSaveScheduler chrSaveScheduler = new CharacterSaveScheduler();
+    private final Set<Integer> queuedCharacters = ConcurrentHashMap.newKeySet();
+    private volatile boolean disposed;
 
     @Override
     public void dispose() {
-        if (chrSaveScheduler != null) {
-            chrSaveScheduler.dispose();
-            chrSaveScheduler = null;
-        }
+        disposed = true;
+        queuedCharacters.clear();
     }
 
     public void registerSaveCharacter(int characterId, Runnable runAction) {
-        chrSaveScheduler.registerSaveCharacter(characterId, runAction);
-    }
-
-    private class CharacterSaveScheduler extends BaseScheduler {
-
-        public void registerSaveCharacter(Integer characterId, Runnable runAction) {
-            registerEntry(characterId, runAction, 0);
+        if (disposed || !queuedCharacters.add(characterId)) {
+            return;
         }
 
-        public void unregisterSaveCharacter(Integer characterId) {
-            interruptEntry(characterId);
+        try {
+            ServerExecutors.getInstance().executePersistence(() -> {
+                try {
+                    runAction.run();
+                } finally {
+                    queuedCharacters.remove(characterId);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            queuedCharacters.remove(characterId);
+            log.error("Persistence queue is full; could not queue character {}", characterId, e);
         }
-
     }
 
 }

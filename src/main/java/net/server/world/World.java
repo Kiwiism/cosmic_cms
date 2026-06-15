@@ -235,7 +235,10 @@ public class World {
         mountsSchedule = tman.register(new MountTirednessTask(this), MINUTES.toMillis(1), MINUTES.toMillis(1));
         merchantSchedule = tman.register(new HiredMerchantTask(this), 10 * MINUTES.toMillis(1), 10 * MINUTES.toMillis(1));
         timedMapObjectsSchedule = tman.register(new TimedMapObjectTask(this), MINUTES.toMillis(1), MINUTES.toMillis(1));
-        charactersSchedule = tman.register(new CharacterAutosaverTask(this), HOURS.toMillis(1), HOURS.toMillis(1));
+        long autosaveBatchInterval = Math.max(1000, YamlConfig.config.server.AUTOSAVE_BATCH_INTERVAL_MS);
+        long autosaveInitialDelay = Math.min(autosaveBatchInterval, 1000L * (id + 1));
+        charactersSchedule = tman.registerMaintenance(new CharacterAutosaverTask(this),
+                autosaveBatchInterval, autosaveInitialDelay);
         marriagesSchedule = tman.register(new WeddingReservationTask(this), MINUTES.toMillis(YamlConfig.config.server.WEDDING_RESERVATION_INTERVAL), MINUTES.toMillis(YamlConfig.config.server.WEDDING_RESERVATION_INTERVAL));
         mapOwnershipSchedule = tman.register(new MapOwnershipTask(this), SECONDS.toMillis(20), SECONDS.toMillis(20));
         fishingSchedule = tman.register(new FishingTask(this), SECONDS.toMillis(10), SECONDS.toMillis(10));

@@ -24,17 +24,17 @@ package server;
 import net.server.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import config.YamlConfig;
+import server.runtime.RuntimeMetrics;
+import server.runtime.ServerExecutors;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
-import static java.util.concurrent.TimeUnit.MINUTES;
 
 public class TimerManager implements TimerManagerMBean {
     private static final Logger log = LoggerFactory.getLogger(TimerManager.class);
@@ -51,7 +51,7 @@ public class TimerManager implements TimerManagerMBean {
         try {
             mBeanServer.registerMBean(this, new ObjectName("server:type=TimerManger"));
         } catch (Exception e) {
-            e.printStackTrace();
+            log.warn("Unable to register TimerManager MBean", e);
         }
     }
 
@@ -59,28 +59,12 @@ public class TimerManager implements TimerManagerMBean {
         if (ses != null && !ses.isShutdown() && !ses.isTerminated()) {
             return;
         }
-        ScheduledThreadPoolExecutor stpe = new ScheduledThreadPoolExecutor(4, new ThreadFactory() {
-            private final AtomicInteger threadNumber = new AtomicInteger(1);
-
-            @Override
-            public Thread newThread(Runnable r) {
-                Thread t = new Thread(r);
-                t.setName("TimerManager-Worker-" + threadNumber.getAndIncrement());
-                return t;
-            }
-        });
-        //this is a no-no, it actually does nothing..then why the fuck are you doing it?
-        stpe.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
-        stpe.setRemoveOnCancelPolicy(true);
-
-        stpe.setKeepAliveTime(5, MINUTES);
-        stpe.allowCoreThreadTimeOut(true);
-
-        ses = stpe;
+        ServerExecutors.getInstance().start();
+        ses = ServerExecutors.getInstance().gameplayScheduler();
     }
 
     public void stop() {
-        ses.shutdownNow();
+        // ServerExecutors owns the shared scheduler lifecycle.
     }
 
     public Runnable purge() {//Yay?
@@ -91,15 +75,25 @@ public class TimerManager implements TimerManagerMBean {
     }
 
     public ScheduledFuture<?> register(Runnable r, long repeatTime, long delay) {
-        return ses.scheduleAtFixedRate(new LoggingSaveRunnable(r), delay, repeatTime, MILLISECONDS);
+        return ses.scheduleAtFixedRate(new TimedRunnable(r), delay, repeatTime, MILLISECONDS);
     }
 
     public ScheduledFuture<?> register(Runnable r, long repeatTime) {
-        return ses.scheduleAtFixedRate(new LoggingSaveRunnable(r), 0, repeatTime, MILLISECONDS);
+        return ses.scheduleAtFixedRate(new TimedRunnable(r), 0, repeatTime, MILLISECONDS);
     }
 
     public ScheduledFuture<?> schedule(Runnable r, long delay) {
-        return ses.schedule(new LoggingSaveRunnable(r), delay, MILLISECONDS);
+        return ses.schedule(new TimedRunnable(r), Math.max(0, delay), MILLISECONDS);
+    }
+
+    public ScheduledFuture<?> registerMaintenance(Runnable r, long repeatTime, long delay) {
+        return ServerExecutors.getInstance().maintenanceScheduler()
+                .scheduleAtFixedRate(new TimedRunnable(r), delay, repeatTime, MILLISECONDS);
+    }
+
+    public ScheduledFuture<?> scheduleMaintenance(Runnable r, long delay) {
+        return ServerExecutors.getInstance().maintenanceScheduler()
+                .schedule(new TimedRunnable(r), Math.max(0, delay), MILLISECONDS);
     }
 
     public ScheduledFuture<?> scheduleAtTimestamp(Runnable r, long timestamp) {
@@ -137,19 +131,27 @@ public class TimerManager implements TimerManagerMBean {
     }
 
 
-    private static class LoggingSaveRunnable implements Runnable {
-        Runnable r;
+    private static class TimedRunnable implements Runnable {
+        private final Runnable r;
 
-        public LoggingSaveRunnable(Runnable r) {
+        public TimedRunnable(Runnable r) {
             this.r = r;
         }
 
         @Override
         public void run() {
+            long start = System.nanoTime();
             try {
                 r.run();
             } catch (Throwable t) {
                 log.error("Error in scheduled task", t);
+            } finally {
+                long elapsed = java.time.Duration.ofNanos(System.nanoTime() - start).toMillis();
+                RuntimeMetrics.getInstance().recordScheduledTask(
+                        elapsed, YamlConfig.config.server.SLOW_TASK_WARNING_MS);
+                if (elapsed >= YamlConfig.config.server.SLOW_TASK_WARNING_MS) {
+                    log.warn("Scheduled task {} took {} ms", r.getClass().getName(), elapsed);
+                }
             }
         }
     }

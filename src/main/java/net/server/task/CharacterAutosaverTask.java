@@ -24,10 +24,20 @@ import config.YamlConfig;
 import net.server.PlayerStorage;
 import net.server.world.World;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * @author Ronan
  */
 public class CharacterAutosaverTask extends BaseTask implements Runnable {  // thanks Alex09 (Alex-0000) for noticing these runnable classes are tasks, "workers" runs them
+    private int cursor;
+    private final Map<Integer, Long> lastQueuedAt = new HashMap<>();
 
     @Override
     public void run() {
@@ -36,9 +46,34 @@ public class CharacterAutosaverTask extends BaseTask implements Runnable {  // t
         }
 
         PlayerStorage ps = wserv.getPlayerStorage();
-        for (Character chr : ps.getAllCharacters()) {
-            if (chr != null && chr.isLoggedin()) {
-                chr.saveCharToDB(false);
+        List<Character> characters = new ArrayList<>(ps.getAllCharacters());
+        characters.sort(Comparator.comparingInt(Character::getId));
+        if (characters.isEmpty()) {
+            cursor = 0;
+            lastQueuedAt.clear();
+            return;
+        }
+
+        Set<Integer> onlineIds = characters.stream().map(Character::getId).collect(Collectors.toSet());
+        lastQueuedAt.keySet().retainAll(onlineIds);
+
+        int batchSize = Math.min(Math.max(1, YamlConfig.config.server.AUTOSAVE_BATCH_SIZE), characters.size());
+        long now = System.currentTimeMillis();
+        long characterInterval = Math.max(
+                YamlConfig.config.server.AUTOSAVE_BATCH_INTERVAL_MS,
+                YamlConfig.config.server.AUTOSAVE_CHARACTER_INTERVAL_MS);
+        int submitted = 0;
+        int scanned = 0;
+        while (submitted < batchSize && scanned < characters.size()) {
+            Character chr = characters.get(cursor);
+            cursor = (cursor + 1) % characters.size();
+            scanned++;
+
+            long lastQueued = lastQueuedAt.getOrDefault(chr.getId(), 0L);
+            if (chr.isLoggedin() && now - lastQueued >= characterInterval) {
+                chr.queueAutosave();
+                lastQueuedAt.put(chr.getId(), now);
+                submitted++;
             }
         }
     }

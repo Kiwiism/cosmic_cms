@@ -11,6 +11,25 @@ public class ServerConfig {
     public String DB_USER;
     public String DB_PASS;
     public int INIT_CONNECTION_POOL_TIMEOUT;
+    public int DB_MAX_POOL_SIZE = 16;
+    public int DB_CONNECTION_TIMEOUT_MS = 10000;
+
+    // Runtime hardening
+    public int NETTY_BOSS_THREADS = 2;
+    public int NETTY_WORKER_THREADS = 16;
+    public int BACKGROUND_THREADS = 8;
+    public int BACKGROUND_QUEUE_CAPACITY = 2000;
+    public int PERSISTENCE_THREADS = 4;
+    public int PERSISTENCE_QUEUE_CAPACITY = 4000;
+    public int GAMEPLAY_SCHEDULER_THREADS = 8;
+    public int MAINTENANCE_SCHEDULER_THREADS = 4;
+    public long SLOW_PACKET_WARNING_MS = 100;
+    public long SLOW_TASK_WARNING_MS = 250;
+    public long RUNTIME_HEALTH_LOG_INTERVAL_MS = 60000;
+    public long AUTOSAVE_BATCH_INTERVAL_MS = 30000;
+    public int AUTOSAVE_BATCH_SIZE = 25;
+    public long AUTOSAVE_CHARACTER_INTERVAL_MS = 3600000;
+    public boolean USE_DIRTY_AUTOSAVE = false;
 
     //Login Configuration
     public int WORLDS;

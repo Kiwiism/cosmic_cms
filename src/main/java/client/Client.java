@@ -61,6 +61,7 @@ import scripting.quest.QuestScriptManager;
 import server.MapleLeafLogger;
 import server.ThreadManager;
 import server.TimerManager;
+import server.runtime.RuntimeMetrics;
 import server.life.Monster;
 import server.maps.FieldLimit;
 import server.maps.MapleMap;
@@ -216,14 +217,25 @@ public class Client extends ChannelInboundHandlerAdapter {
         }
 
         if (handler != null && handler.validateState(this)) {
+            long handlerStart = System.nanoTime();
             try {
                 MonitoredChrLogger.logPacketIfMonitored(this, opcode, packet.getBytes());
+                if (player != null) {
+                    player.markPersistenceDirty();
+                }
                 handler.handlePacket(packet, this);
             } catch (final Throwable t) {
                 final String chrInfo = player != null ? player.getName() + " on map " + player.getMapId() : "?";
                 log.warn("Error in packet handler {}. Chr {}, account {}. Packet: {}", handler.getClass().getSimpleName(),
                         chrInfo, getAccountName(), packet, t);
                 //client.sendPacket(PacketCreator.enableActions());//bugs sometimes
+            } finally {
+                long elapsed = java.time.Duration.ofNanos(System.nanoTime() - handlerStart).toMillis();
+                RuntimeMetrics.getInstance().recordPacket(elapsed, YamlConfig.config.server.SLOW_PACKET_WARNING_MS);
+                if (elapsed >= YamlConfig.config.server.SLOW_PACKET_WARNING_MS) {
+                    log.warn("Packet handler {} took {} ms for opcode {}", handler.getClass().getSimpleName(),
+                            elapsed, opcode);
+                }
             }
         }
 

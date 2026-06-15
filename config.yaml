@@ -164,6 +164,25 @@ server:
     DB_USER: "root"
     DB_PASS: "root"
     INIT_CONNECTION_POOL_TIMEOUT: 90    # Seconds
+    DB_MAX_POOL_SIZE: 16                 # Tune against measured MySQL capacity, not player count.
+    DB_CONNECTION_TIMEOUT_MS: 10000
+
+    # Runtime hardening and backpressure
+    NETTY_BOSS_THREADS: 2
+    NETTY_WORKER_THREADS: 16
+    BACKGROUND_THREADS: 8
+    BACKGROUND_QUEUE_CAPACITY: 2000
+    PERSISTENCE_THREADS: 4
+    PERSISTENCE_QUEUE_CAPACITY: 4000
+    GAMEPLAY_SCHEDULER_THREADS: 8
+    MAINTENANCE_SCHEDULER_THREADS: 4
+    SLOW_PACKET_WARNING_MS: 100
+    SLOW_TASK_WARNING_MS: 250
+    RUNTIME_HEALTH_LOG_INTERVAL_MS: 60000
+    AUTOSAVE_BATCH_INTERVAL_MS: 30000
+    AUTOSAVE_BATCH_SIZE: 25
+    AUTOSAVE_CHARACTER_INTERVAL_MS: 3600000
+    USE_DIRTY_AUTOSAVE: false            # Keep false until all server-originated mutations mark persistence dirty.
 
     #Login Configuration
     WORLDS: 1                           #Initial number of worlds on the server.

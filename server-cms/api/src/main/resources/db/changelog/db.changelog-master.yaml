@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/004-setting-editability.sql
   - include:
       file: db/changelog/005-command-overrides.sql
+  - include:
+      file: db/changelog/006-runtime-hardening.sql

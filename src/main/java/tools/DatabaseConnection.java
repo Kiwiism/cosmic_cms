@@ -8,6 +8,7 @@ import org.jdbi.v3.core.Handle;
 import org.jdbi.v3.core.Jdbi;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import server.runtime.RuntimeMetrics;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
@@ -32,7 +33,11 @@ public class DatabaseConnection {
             throw new IllegalStateException("Unable to get connection - connection pool is uninitialized");
         }
 
-        return dataSource.getConnection();
+        long start = System.nanoTime();
+        Connection connection = dataSource.getConnection();
+        RuntimeMetrics.getInstance().recordDatabaseConnection(
+                Duration.ofNanos(System.nanoTime() - start).toMillis());
+        return connection;
     }
 
     public static Handle getHandle() {
@@ -61,8 +66,9 @@ public class DatabaseConnection {
 
         final int initFailTimeoutSeconds = YamlConfig.config.server.INIT_CONNECTION_POOL_TIMEOUT;
         config.setInitializationFailTimeout(SECONDS.toMillis(initFailTimeoutSeconds));
-        config.setConnectionTimeout(SECONDS.toMillis(30)); // Hikari default
-        config.setMaximumPoolSize(10); // Hikari default
+        config.setConnectionTimeout(Math.max(250, YamlConfig.config.server.DB_CONNECTION_TIMEOUT_MS));
+        config.setMaximumPoolSize(Math.max(2, YamlConfig.config.server.DB_MAX_POOL_SIZE));
+        config.setPoolName("Cosmic-Database");
 
         config.addDataSourceProperty("cachePrepStmts", true);
         config.addDataSourceProperty("prepStmtCacheSize", 25);
@@ -98,6 +104,19 @@ public class DatabaseConnection {
 
         // Timed out - failed to initialize
         return false;
+    }
+
+    public static void applyRuntimePoolConfiguration() {
+        if (dataSource == null) {
+            return;
+        }
+
+        int maximumPoolSize = Math.max(2, YamlConfig.config.server.DB_MAX_POOL_SIZE);
+        long connectionTimeout = Math.max(250, YamlConfig.config.server.DB_CONNECTION_TIMEOUT_MS);
+        dataSource.getHikariConfigMXBean().setMaximumPoolSize(maximumPoolSize);
+        dataSource.getHikariConfigMXBean().setConnectionTimeout(connectionTimeout);
+        log.info("Database pool configured with max size {} and connection timeout {} ms",
+                maximumPoolSize, connectionTimeout);
     }
 
     private static void initializeJdbi(DataSource dataSource) {

@@ -42,6 +42,7 @@ import database.note.NoteDao;
 import net.ChannelDependencies;
 import net.PacketProcessor;
 import net.netty.LoginServer;
+import net.netty.NettyServerRuntime;
 import net.packet.Packet;
 import net.server.channel.Channel;
 import net.server.coordinator.session.IpAddresses;
@@ -68,6 +69,7 @@ import server.CashShop.CashItemFactory;
 import server.SkillbookInformationProvider;
 import server.ThreadManager;
 import server.TimerManager;
+import server.runtime.RuntimeMetrics;
 import server.configuration.ServerConfigurationOverrides;
 import server.configuration.CommandPolicyOverrides;
 import server.expeditions.ExpeditionBossLog;
@@ -241,7 +243,7 @@ public class Server {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            log.error("Failed to load Player NPC map placement state", e);
         }
     }
 
@@ -856,7 +858,7 @@ public class Server {
                 }
             }
         } catch (SQLException ex) {
-            ex.printStackTrace();
+            log.error("Failed to load player ranking", ex);
         }
 
         return rankSystem;
@@ -876,6 +878,7 @@ public class Server {
 
         // Optional Server CMS desired-state overrides. Failure preserves config.yaml/Java behavior.
         ServerConfigurationOverrides.applyStartupOverrides();
+        DatabaseConnection.applyRuntimePoolConfiguration();
         CommandPolicyOverrides.load();
 
         DatabaseMigrations.runDatabaseMigrations();
@@ -995,24 +998,29 @@ public class Server {
     private void initializeTimelyTasks(ChannelDependencies channelDependencies) {
         TimerManager tMan = TimerManager.getInstance();
         tMan.start();
-        tMan.register(tMan.purge(), YamlConfig.config.server.PURGING_INTERVAL);//Purging ftw...
+        tMan.registerMaintenance(tMan.purge(), YamlConfig.config.server.PURGING_INTERVAL,
+                YamlConfig.config.server.PURGING_INTERVAL);
         disconnectIdlesOnLoginTask();
 
         long timeLeft = getTimeLeftForNextHour();
         tMan.register(new CharacterDiseaseTask(), YamlConfig.config.server.UPDATE_INTERVAL, YamlConfig.config.server.UPDATE_INTERVAL);
-        tMan.register(new CouponTask(), YamlConfig.config.server.COUPON_INTERVAL, timeLeft);
-        tMan.register(new RankingCommandTask(), MINUTES.toMillis(5), MINUTES.toMillis(5));
-        tMan.register(new RankingLoginTask(), YamlConfig.config.server.RANKING_INTERVAL, timeLeft);
-        tMan.register(new LoginCoordinatorTask(), HOURS.toMillis(1), timeLeft);
-        tMan.register(new EventRecallCoordinatorTask(), HOURS.toMillis(1), timeLeft);
-        tMan.register(new LoginStorageTask(), MINUTES.toMillis(2), MINUTES.toMillis(2));
-        tMan.register(new DueyFredrickTask(channelDependencies.fredrickProcessor()), HOURS.toMillis(1), timeLeft);
-        tMan.register(new InvitationTask(), SECONDS.toMillis(30), SECONDS.toMillis(30));
+        tMan.registerMaintenance(new CouponTask(), YamlConfig.config.server.COUPON_INTERVAL, timeLeft);
+        tMan.registerMaintenance(new RankingCommandTask(), MINUTES.toMillis(5), MINUTES.toMillis(5));
+        tMan.registerMaintenance(new RankingLoginTask(), YamlConfig.config.server.RANKING_INTERVAL, timeLeft);
+        tMan.registerMaintenance(new LoginCoordinatorTask(), HOURS.toMillis(1), timeLeft);
+        tMan.registerMaintenance(new EventRecallCoordinatorTask(), HOURS.toMillis(1), timeLeft);
+        tMan.registerMaintenance(new LoginStorageTask(), MINUTES.toMillis(2), MINUTES.toMillis(2));
+        tMan.registerMaintenance(new DueyFredrickTask(channelDependencies.fredrickProcessor()), HOURS.toMillis(1), timeLeft);
+        tMan.registerMaintenance(new InvitationTask(), SECONDS.toMillis(30), SECONDS.toMillis(30));
         tMan.register(new RespawnTask(), YamlConfig.config.server.RESPAWN_INTERVAL, YamlConfig.config.server.RESPAWN_INTERVAL);
+        tMan.registerMaintenance(() -> log.info("Runtime health: {}",
+                        RuntimeMetrics.getInstance().healthSnapshot()),
+                Math.max(10000, YamlConfig.config.server.RUNTIME_HEALTH_LOG_INTERVAL_MS),
+                Math.max(10000, YamlConfig.config.server.RUNTIME_HEALTH_LOG_INTERVAL_MS));
 
         timeLeft = getTimeLeftForNextDay();
         ExpeditionBossLog.resetBossLogTable();
-        tMan.register(new BossLogTask(), DAYS.toMillis(1), timeLeft);
+        tMan.registerMaintenance(new BossLogTask(), DAYS.toMillis(1), timeLeft);
     }
 
     public static void main(String[] args) {
@@ -1593,7 +1601,7 @@ public class Server {
 
             wchars.add(curWorld, chars);
         } catch (SQLException sqle) {
-            sqle.printStackTrace();
+            log.error("Failed to load account character view", sqle);
         }
 
         return new Pair<>(characterCount, wchars);
@@ -1611,7 +1619,7 @@ public class Server {
                 }
             }
         } catch (SQLException se) {
-            se.printStackTrace();
+            log.error("Failed to preload account character views", se);
         }
     }
 
@@ -1937,28 +1945,10 @@ public class Server {
         if (getWorlds() == null) {
             return;//already shutdown
         }
+        loginServer.stop();
         for (World w : getWorlds()) {
             w.shutdown();
         }
-
-        /*for (World w : getWorlds()) {
-            while (w.getPlayerStorage().getAllCharacters().size() > 0) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ie) {
-                    System.err.println("FUCK MY LIFE");
-                }
-            }
-        }
-        for (Channel ch : getAllChannels()) {
-            while (ch.getConnectedClients() > 0) {
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ie) {
-                    System.err.println("FUCK MY LIFE");
-                }
-            }
-        }*/
 
         List<Channel> allChannels = getAllChannels();
 
@@ -1975,7 +1965,6 @@ public class Server {
         resetServerWorlds();
 
         ThreadManager.getInstance().stop();
-        TimerManager.getInstance().purge();
         TimerManager.getInstance().stop();
 
         log.info("Worlds and channels are offline.");
@@ -1983,7 +1972,7 @@ public class Server {
             cmsBridgeServer.stop();
             cmsBridgeServer = null;
         }
-        loginServer.stop();
+        NettyServerRuntime.getInstance().stop();
         if (!restart) {  // shutdown hook deadlocks if System.exit() method is used within its body chores, thanks MIKE for pointing that out
             // We disabled log4j's shutdown hook in the config file, so we have to manually shut it down here,
             // after our last log statement.
