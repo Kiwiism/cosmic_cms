@@ -1959,10 +1959,11 @@ public class Server {
 
     private synchronized void shutdownInternal(boolean restart) {
         log.info("{} the server!", restart ? "Restarting" : "Shutting down");
-        if (getWorlds() == null) {
-            return;//already shutdown
+        if (loginServer != null) {
+            loginServer.stop();
+            loginServer = null;
         }
-        loginServer.stop();
+
         for (World w : getWorlds()) {
             w.shutdown();
         }
