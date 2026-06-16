@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,19 @@ public class AgentController {
     private final JdbcTemplate gameJdbc;
     private final ObjectMapper mapper;
     private final BridgeClient bridge;
+    private static final List<AgentCapabilityPolicy> CAPABILITY_POLICIES = List.of(
+            new AgentCapabilityPolicy("intent.self.enabled", "Self timing", "Allows no-op IDLE and WAIT dry-run intents.", true),
+            new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows future SAY/chat intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.navigation.enabled", "Navigation", "Allows future ROAM, MOVE, MAP and PORTAL intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows future ATTACK and GRIND intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows future LOOT intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows future NPC/TALK intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows future SHOP/MERCHANT intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.trade.enabled", "Trade", "Allows future TRADE intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.party.enabled", "Party", "Allows future PARTY intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.inventory.enabled", "Inventory", "Allows future USEITEM and EQUIP intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.script.enabled", "Script fallback", "Allows unknown script intents to pass the policy gate. Keep disabled unless debugging parser behavior.", false)
+    );
 
     public AgentController(JdbcTemplate cmsJdbc, @Qualifier("gameJdbc") JdbcTemplate gameJdbc, ObjectMapper mapper,
                            BridgeClient bridge) {
@@ -172,6 +186,78 @@ public class AgentController {
                 """, id);
     }
 
+    @GetMapping("/{id}/policies")
+    List<Map<String, Object>> policies(@PathVariable int id) {
+        agent(id);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (AgentCapabilityPolicy capability : CAPABILITY_POLICIES) {
+            String globalValue = policyValue(0, capability.key());
+            String agentValue = policyValue(id, capability.key());
+            boolean effective = parseBoolean(agentValue == null ? globalValue : agentValue, capability.defaultEnabled());
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("key", capability.key());
+            row.put("label", capability.label());
+            row.put("description", capability.description());
+            row.put("defaultEnabled", capability.defaultEnabled());
+            row.put("globalValue", globalValue);
+            row.put("agentValue", agentValue);
+            row.put("effective", effective);
+            row.put("overridden", agentValue != null);
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    @PutMapping("/{id}/policies/{key}")
+    Map<String, Object> updatePolicy(@PathVariable int id, @PathVariable String key,
+                                     @Valid @RequestBody UpdatePolicy body, Principal principal) {
+        agent(id);
+        AgentCapabilityPolicy capability = CAPABILITY_POLICIES.stream()
+                .filter(policy -> policy.key().equals(key))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown agent policy"));
+
+        String previousAgentValue = policyValue(id, key);
+        Map<String, Object> before = new LinkedHashMap<>();
+        before.put("key", key);
+        before.put("agentValue", previousAgentValue);
+        before.put("effective", parseBoolean(previousAgentValue, capability.defaultEnabled()));
+        gameJdbc.update("""
+                INSERT INTO agent_policies(agent_profile_id, scope, policy_key, policy_value)
+                VALUES (?, 'AGENT', ?, ?)
+                ON DUPLICATE KEY UPDATE policy_value=VALUES(policy_value)
+                """, id, key, Boolean.toString(Boolean.TRUE.equals(body.enabled())));
+        Map<String, Object> after = policies(id).stream()
+                .filter(row -> key.equals(row.get("key")))
+                .findFirst()
+                .orElseThrow();
+        audit(principal, "AGENT_POLICY_SET", "agent:" + id + ":" + key, before, after,
+                valueOr(body.reason(), "Updated agent policy through Server CMS"));
+        return after;
+    }
+
+    @DeleteMapping("/{id}/policies/{key}")
+    Map<String, Object> resetPolicy(@PathVariable int id, @PathVariable String key,
+                                    @RequestParam(defaultValue = "Reset agent policy through Server CMS") String reason,
+                                    Principal principal) {
+        agent(id);
+        if (CAPABILITY_POLICIES.stream().noneMatch(policy -> policy.key().equals(key))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown agent policy");
+        }
+
+        Map<String, Object> before = new LinkedHashMap<>();
+        before.put("key", key);
+        before.put("agentValue", policyValue(id, key));
+        gameJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=? AND policy_key=?", id, key);
+        Map<String, Object> after = policies(id).stream()
+                .filter(row -> key.equals(row.get("key")))
+                .findFirst()
+                .orElseThrow();
+        audit(principal, "AGENT_POLICY_RESET", "agent:" + id + ":" + key, before, after, reason);
+        return after;
+    }
+
     @PostMapping("/{id}/runtime/{action}")
     Map<String, Object> runtimeAction(@PathVariable int id, @PathVariable String action, Principal principal) {
         if (!List.of("prepare", "enter", "tick", "release").contains(action)) {
@@ -201,6 +287,25 @@ public class AgentController {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    private String policyValue(int agentProfileId, String key) {
+        List<String> rows = gameJdbc.queryForList("""
+                SELECT policy_value FROM agent_policies
+                WHERE agent_profile_id=? AND policy_key=?
+                ORDER BY id DESC LIMIT 1
+                """, String.class, agentProfileId, key);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    private boolean parseBoolean(String value, boolean fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        return switch (value.trim().toLowerCase()) {
+            case "1", "true", "yes", "y", "enabled", "on" -> true;
+            default -> false;
+        };
+    }
+
     private void audit(Principal principal, String action, String key, Object before, Object after, String reason) {
         try {
             Long actor = cmsJdbc.queryForObject("SELECT id FROM server_cms_users WHERE username=?", Long.class, principal.getName());
@@ -220,4 +325,8 @@ public class AgentController {
 
     record UpdateAgent(Boolean enabled, String displayName, String defaultMode, String behaviorProfile,
                        String personalityProfile, String scriptName, Boolean llmEnabled, String reason) {}
+
+    record UpdatePolicy(Boolean enabled, String reason) {}
+
+    record AgentCapabilityPolicy(String key, String label, String description, boolean defaultEnabled) {}
 }
