@@ -72,6 +72,7 @@ import server.SkillbookInformationProvider;
 import server.ThreadManager;
 import server.TimerManager;
 import server.runtime.RuntimeMetrics;
+import server.runtime.RuntimeModuleManager;
 import server.configuration.ServerConfigurationOverrides;
 import server.configuration.CommandPolicyOverrides;
 import server.expeditions.ExpeditionBossLog;
@@ -885,6 +886,7 @@ public class Server {
         CommandPolicyOverrides.load();
 
         DatabaseMigrations.runDatabaseMigrations();
+        RuntimeModuleManager.getInstance().start(this);
 
         channelDependencies = registerChannelDependencies();
 
@@ -961,6 +963,7 @@ public class Server {
         }
         Duration initDuration = Duration.between(beforeInit, Instant.now());
         log.info("Cosmic is now online after {} ms.", initDuration.toMillis());
+        RuntimeModuleManager.getInstance().markOnline();
 
         OpcodeConstants.generateOpcodeNames();
         CommandsExecutor.getInstance();
@@ -1959,6 +1962,7 @@ public class Server {
 
     private synchronized void shutdownInternal(boolean restart) {
         log.info("{} the server!", restart ? "Restarting" : "Shutting down");
+        RuntimeModuleManager.getInstance().stop(this);
         if (loginServer != null) {
             loginServer.stop();
             loginServer = null;
