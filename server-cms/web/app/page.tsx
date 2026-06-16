@@ -100,9 +100,9 @@ function CategoryPage({view,refreshKey,onOpen}:{view:View;refreshKey:number;onOp
 }
 
 function Agents(){
- const [agents,setAgents]=useState<any[]>([]),[selected,setSelected]=useState<any|null>(null),[q,setQ]=useState(""),[charQ,setCharQ]=useState(""),[chars,setChars]=useState<any[]>([]),[plan,setPlan]=useState<any|null>(null),[logs,setLogs]=useState<any[]>([]),[policies,setPolicies]=useState<any[]>([]),[runtimeResult,setRuntimeResult]=useState<any|null>(null),[reason,setReason]=useState("Updated through Server CMS"),[error,setError]=useState("");
+ const [agents,setAgents]=useState<any[]>([]),[selected,setSelected]=useState<any|null>(null),[q,setQ]=useState(""),[charQ,setCharQ]=useState(""),[chars,setChars]=useState<any[]>([]),[plan,setPlan]=useState<any|null>(null),[logs,setLogs]=useState<any[]>([]),[memory,setMemory]=useState<any[]>([]),[policies,setPolicies]=useState<any[]>([]),[runtimeResult,setRuntimeResult]=useState<any|null>(null),[reason,setReason]=useState("Updated through Server CMS"),[error,setError]=useState("");
  const load=()=>api<any[]>(`/api/agents?q=${encodeURIComponent(q)}`).then(rows=>{setAgents(rows);if(selected){const next=rows.find(row=>row.id===selected.id);if(next)setSelected(next)}}).catch(x=>setError((x as Error).message));
- const loadAgentDetails=()=>{if(!selected){setPlan(null);setLogs([]);setPolicies([]);return}api(`/api/agents/${selected.id}/spawn-plan`).then(setPlan).catch(()=>setPlan(null));api<any[]>(`/api/agents/${selected.id}/logs`).then(setLogs).catch(()=>setLogs([]));api<any[]>(`/api/agents/${selected.id}/policies`).then(setPolicies).catch(()=>setPolicies([]))};
+ const loadAgentDetails=()=>{if(!selected){setPlan(null);setLogs([]);setMemory([]);setPolicies([]);return}api(`/api/agents/${selected.id}/spawn-plan`).then(setPlan).catch(()=>setPlan(null));api<any[]>(`/api/agents/${selected.id}/logs`).then(setLogs).catch(()=>setLogs([]));api<any[]>(`/api/agents/${selected.id}/memory`).then(setMemory).catch(()=>setMemory([]));api<any[]>(`/api/agents/${selected.id}/policies`).then(setPolicies).catch(()=>setPolicies([]))};
  useEffect(()=>{const timer=setTimeout(load,160);return()=>clearTimeout(timer)},[q]);
  useEffect(()=>{setRuntimeResult(null);loadAgentDetails()},[selected?.id]);
  useEffect(()=>{const timer=setTimeout(()=>{if(charQ.trim().length<2){setChars([]);return}api<any[]>(`/api/agents/characters?q=${encodeURIComponent(charQ)}`).then(setChars).catch(()=>setChars([]))},160);return()=>clearTimeout(timer)},[charQ]);
@@ -142,6 +142,8 @@ function Agents(){
      <span className={policy.effective?"active-state":"inactive-state"}>{policy.effective?"Allowed":"Blocked"}</span>
      <div className="policy-actions"><button className="secondary" onClick={()=>setPolicy(policy,true)}>Allow</button><button className="secondary" onClick={()=>setPolicy(policy,false)}>Block</button><button className="secondary" disabled={!policy.overridden} onClick={()=>resetPolicy(policy)}>Use fallback</button></div>
     </article>)}</div></section>
+   <section className="panel full-span"><Title title="Recent memory" sub="Compact observation checkpoints recorded during dry-run ticks."/>
+    {memory.length?memory.map(item=><div className="audit-row" key={item.id}><strong>{item.event_type}</strong><code>Importance {item.importance}</code><span>{String(item.created_at)}</span><p>{item.summary}</p>{item.details_json&&<details><summary>Details</summary><pre>{item.details_json}</pre></details>}</div>):<p className="muted">No memory events yet. Run a dry-run tick after entering an agent.</p>}</section>
    <section className="panel full-span"><Title title="Recent action logs" sub="Lifecycle and future action records from agent_action_logs"/>
     {logs.length?logs.map(log=><div className="audit-row" key={log.id}><strong>{log.action_type}</strong><code>{log.status}</code><span>{String(log.created_at)}</span><p>{log.message}</p></div>):<p className="muted">No runtime logs yet.</p>}</section></div>}</>
 }

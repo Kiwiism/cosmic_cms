@@ -186,6 +186,17 @@ public class AgentController {
                 """, id);
     }
 
+    @GetMapping("/{id}/memory")
+    List<Map<String, Object>> memory(@PathVariable int id) {
+        agent(id);
+        return gameJdbc.queryForList("""
+                SELECT *
+                FROM agent_memory_events
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 50
+                """, id);
+    }
+
     @GetMapping("/{id}/policies")
     List<Map<String, Object>> policies(@PathVariable int id) {
         agent(id);

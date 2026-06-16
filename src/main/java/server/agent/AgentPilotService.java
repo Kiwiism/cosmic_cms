@@ -48,6 +48,7 @@ public final class AgentPilotService {
         String message = "Planned " + intent.type() + " intent from " + scriptBody.source();
         runtimeService.logPlannedIntent(managed, intent, perception, scriptBody.source(), message);
         AgentIntentDispatchResult dispatchResult = intentDispatcher.dispatch(managed, intent, perception, scriptBody.source());
+        runtimeService.rememberPilotTick(managed, intent, dispatchResult, perception, scriptBody.source());
         runtimeService.heartbeat(managed.session(), message);
 
         return new AgentPilotTickResult(

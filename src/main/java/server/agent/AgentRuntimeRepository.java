@@ -120,6 +120,26 @@ public final class AgentRuntimeRepository {
         }
     }
 
+    public void remember(AgentMemoryEvent event) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     INSERT INTO agent_memory_events
+                     (agent_profile_id, event_type, importance, related_character_id, related_agent_profile_id,
+                      map_id, summary, details_json)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     """)) {
+            statement.setInt(1, event.agentProfileId());
+            statement.setString(2, event.eventType());
+            statement.setInt(3, event.importance());
+            setNullableInt(statement, 4, event.relatedCharacterId());
+            setNullableInt(statement, 5, event.relatedAgentProfileId());
+            setNullableInt(statement, 6, event.mapId());
+            statement.setString(7, event.summary());
+            statement.setString(8, event.detailsJson());
+            statement.executeUpdate();
+        }
+    }
+
     private AgentRuntimeSession readSession(ResultSet result) throws SQLException {
         return new AgentRuntimeSession(
                 result.getLong("id"),

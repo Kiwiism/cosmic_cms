@@ -118,6 +118,32 @@ public final class AgentRuntimeService {
         ));
     }
 
+    public void rememberPilotTick(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult,
+            AgentPerceptionSnapshot perception,
+            String scriptSource
+    ) throws SQLException {
+        repository.remember(new AgentMemoryEvent(
+                managed.profileId(),
+                "PILOT_TICK",
+                memoryImportance(intent, dispatchResult, perception),
+                null,
+                null,
+                perception.mapId(),
+                memorySummary(intent, dispatchResult, perception),
+                "{"
+                        + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                        + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                        + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
+                        + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
+                        + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
+                        + "\"perception\":" + perceptionDetailsJson(perception)
+                        + "}"
+        ));
+    }
+
     public void failSession(AgentRuntimeSession session, String reason) {
         try {
             repository.endSession(session.id(), AgentRuntimeState.FAILED, reason);
@@ -151,6 +177,27 @@ public final class AgentRuntimeService {
             case IDLE, WAIT -> "SELF";
             case UNKNOWN -> "SCRIPT";
         };
+    }
+
+    private int memoryImportance(AgentIntent intent, AgentIntentDispatchResult dispatchResult, AgentPerceptionSnapshot perception) {
+        int importance = 1;
+        if (!perception.available() || dispatchResult.status() == AgentActionStatus.BLOCKED) {
+            importance += 1;
+        }
+        if (perception.monsters() > 0 || perception.players() > 1 || intent.type() != AgentIntentType.IDLE) {
+            importance += 1;
+        }
+        return Math.min(importance, 5);
+    }
+
+    private String memorySummary(AgentIntent intent, AgentIntentDispatchResult dispatchResult, AgentPerceptionSnapshot perception) {
+        return "Saw "
+                + perception.players() + " players, "
+                + perception.monsters() + " monsters, "
+                + perception.drops() + " drops, planned "
+                + intent.type()
+                + " and dispatch was "
+                + dispatchResult.status();
     }
 
     private String plannedIntentDetailsJson(
