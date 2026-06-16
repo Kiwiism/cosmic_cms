@@ -40,6 +40,13 @@ Stores server-side scripts that Agent CMS can manage later.
 
 - scripts are disabled by default
 - `script_type` starts as `YAML`, but the field is generic enough for future DSLs
+- the dormant pilot tick service only reads enabled scripts by `agent_profiles.script_name`
+- `script_name = inline:<script line>` is supported for development previews without creating a script row
+
+The current pilot layer is a dry run. It parses a script, captures map counts,
+chooses the next intent, and writes an `INTENT_PLAN` row to
+`agent_action_logs`. It does not move, chat, attack, loot, trade, or call
+gameplay handlers yet.
 
 ## Observation And Social Tables
 

@@ -21,6 +21,8 @@ public final class AgentRuntimeModule implements RuntimeModule {
     private final AgentSpawnCoordinator spawnCoordinator;
     private final AgentPerceptionService perceptionService;
     private final AgentScriptRunner scriptRunner;
+    private final AgentScriptRepository scriptRepository;
+    private final AgentPilotService pilotService;
 
     public AgentRuntimeModule() {
         this(new AgentRegistry(new AgentRepository()), new AgentRuntimeService());
@@ -33,6 +35,8 @@ public final class AgentRuntimeModule implements RuntimeModule {
         this.spawnCoordinator = new AgentSpawnCoordinator(runtimeService, controlShell);
         this.perceptionService = new AgentPerceptionService();
         this.scriptRunner = new AgentScriptRunner();
+        this.scriptRepository = new AgentScriptRepository();
+        this.pilotService = new AgentPilotService(perceptionService, scriptRunner, scriptRepository, runtimeService);
     }
 
     @Override
@@ -75,5 +79,9 @@ public final class AgentRuntimeModule implements RuntimeModule {
 
     public AgentScriptRunner scriptRunner() {
         return scriptRunner;
+    }
+
+    public AgentPilotService pilotService() {
+        return pilotService;
     }
 }

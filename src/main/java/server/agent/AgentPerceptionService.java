@@ -15,6 +15,26 @@ import java.time.Instant;
  * the control runtime exists.
  */
 public final class AgentPerceptionService {
+    public AgentPerceptionSnapshot snapshot(AgentManagedCharacter managed) {
+        MapleMap map = managed.character().getMap();
+        if (map == null) {
+            return AgentPerceptionSnapshot.unavailable(managed.spawnPlan(), "Agent character is not attached to a map");
+        }
+
+        return new AgentPerceptionSnapshot(
+                true,
+                managed.spawnPlan().world(),
+                managed.spawnPlan().channel(),
+                map.getId(),
+                map.countPlayers(),
+                map.countMonsters(),
+                map.countItems(),
+                map.countReactors(),
+                "Entered agent map snapshot captured",
+                Instant.now()
+        );
+    }
+
     public AgentPerceptionSnapshot snapshot(AgentSpawnPlan plan) {
         if (!plan.ready()) {
             return AgentPerceptionSnapshot.unavailable(plan, plan.controlDecision().message());

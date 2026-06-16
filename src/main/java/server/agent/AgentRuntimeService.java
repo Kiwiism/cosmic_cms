@@ -73,6 +73,28 @@ public final class AgentRuntimeService {
         ));
     }
 
+    public void logPlannedIntent(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentPerceptionSnapshot perception,
+            String scriptSource,
+            String message
+    ) throws SQLException {
+        repository.logAction(new AgentActionLogEntry(
+                managed.profileId(),
+                managed.session().id(),
+                "INTENT_PLAN",
+                intent.type() == AgentIntentType.UNKNOWN ? AgentActionStatus.BLOCKED : AgentActionStatus.OK,
+                perception.world(),
+                perception.channel(),
+                perception.mapId(),
+                intentTargetType(intent),
+                null,
+                message,
+                intentDetailsJson(intent, perception, scriptSource)
+        ));
+    }
+
     public void failSession(AgentRuntimeSession session, String reason) {
         try {
             repository.endSession(session.id(), AgentRuntimeState.FAILED, reason);
@@ -92,5 +114,44 @@ public final class AgentRuntimeService {
         } catch (SQLException e) {
             log.warn("Failed to mark agent runtime session {} as failed", session.id(), e);
         }
+    }
+
+    private String intentTargetType(AgentIntent intent) {
+        return switch (intent.type()) {
+            case SAY -> "CHAT";
+            case MOVE -> "MAP";
+            case IDLE, WAIT -> "SELF";
+            case UNKNOWN -> "SCRIPT";
+        };
+    }
+
+    private String intentDetailsJson(AgentIntent intent, AgentPerceptionSnapshot perception, String scriptSource) {
+        return "{"
+                + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                + "\"durationMillis\":" + intent.durationMillis() + ","
+                + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
+                + "\"perception\":{"
+                + "\"available\":" + perception.available() + ","
+                + "\"players\":" + perception.players() + ","
+                + "\"monsters\":" + perception.monsters() + ","
+                + "\"drops\":" + perception.drops() + ","
+                + "\"reactors\":" + perception.reactors()
+                + "}"
+                + "}";
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\b", "\\b")
+                .replace("\f", "\\f")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }
