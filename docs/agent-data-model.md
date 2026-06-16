@@ -46,10 +46,11 @@ Stores server-side scripts that Agent CMS can manage later.
 The current pilot layer is a dry run. It parses a script, captures map counts,
 chooses the next intent, and writes an `INTENT_PLAN` row to
 `agent_action_logs`. It then passes the intent through a policy-gated dispatcher
-that writes `INTENT_DISPATCH`. `IDLE` and `WAIT` are accepted as no-ops; `SAY`,
-`MOVE`, and unknown script lines are blocked until their dedicated systems are
-implemented. It does not move, chat, attack, loot, trade, or call gameplay
-handlers yet.
+that writes `INTENT_DISPATCH`. `IDLE` and `WAIT` are accepted as no-ops. The
+future-facing verbs `SAY`, `ROAM`, `MOVE`, `MAP`, `PORTAL`, `ATTACK`, `GRIND`,
+`LOOT`, `NPC`, `SHOP`, `TRADE`, `PARTY`, `USEITEM`, and `EQUIP` are parsed and
+audited, but blocked until their dedicated systems are implemented. It does not
+move, chat, attack, loot, trade, or call gameplay handlers yet.
 
 ## Observation And Social Tables
 
