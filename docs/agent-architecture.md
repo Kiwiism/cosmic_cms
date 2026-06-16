@@ -115,6 +115,7 @@ controller validation.
    - profile repository
    - enabled-profile registry
    - runtime module boundary
+   - conservative control eligibility guard
    - runtime session lifecycle service
    - action logging boundary
    - no gameplay control yet
@@ -190,6 +191,7 @@ controller validation.
 - `server.USE_AGENT_RUNTIME` and the Server CMS setting
   `server.agent.runtimeEnabled` are the runtime gate.
 - No agent should be controlled by both a real client and runtime code.
+- Agent control eligibility must check live world storage and account login state.
 - Runtime failures should stop the affected agent, not the whole server.
 - Economy-changing actions must be logged.
 - High-frequency movement/combat decisions must avoid blocking DB or LLM calls.

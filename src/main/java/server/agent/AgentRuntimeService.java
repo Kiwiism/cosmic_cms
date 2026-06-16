@@ -9,13 +9,19 @@ public final class AgentRuntimeService {
     private static final Logger log = LoggerFactory.getLogger(AgentRuntimeService.class);
 
     private final AgentRuntimeRepository repository;
+    private final AgentControlGuard controlGuard;
 
     public AgentRuntimeService() {
-        this(new AgentRuntimeRepository());
+        this(new AgentRuntimeRepository(), new AgentControlGuard());
     }
 
-    AgentRuntimeService(AgentRuntimeRepository repository) {
+    AgentRuntimeService(AgentRuntimeRepository repository, AgentControlGuard controlGuard) {
         this.repository = repository;
+        this.controlGuard = controlGuard;
+    }
+
+    public AgentControlDecision canControl(AgentProfile profile) {
+        return controlGuard.canRuntimeControl(profile);
     }
 
     public AgentRuntimeSession startSession(AgentProfile profile, int world, int channel, int mapId) throws SQLException {
