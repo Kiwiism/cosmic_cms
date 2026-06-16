@@ -53,10 +53,9 @@ public final class AgentSpawnCoordinator {
             return Optional.empty();
         }
 
-        Client client = Client.createChannelClient(
+        Client client = Client.createHeadlessChannelClient(
                 -profile.id(),
                 "agent-runtime:" + profile.id(),
-                null,
                 plan.world(),
                 plan.channel()
         );

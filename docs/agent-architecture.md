@@ -134,14 +134,17 @@ controller validation.
    - prepare a character through the normal database load path
    - reserve one runtime session per agent profile
    - release prepared handles on module stop
+   - provide a headless channel client that safely absorbs outbound packets
    - load a normal character through an internal client
    - spawn/despawn safely
    - prevent duplicate real-client login
    - save state on shutdown/despawn
 
    The first implementation prepares characters without adding them to map or
-   world player storage. Visible spawn is intentionally separated because the
-   current player-enter-map path expects a Netty-backed client packet sink.
+   world player storage. The second slice adds a headless channel client so
+   future server-side actors can receive normal server packet calls without a
+   Netty socket. Visible spawn still remains separated until the map/world enter
+   lifecycle is explicit and reversible.
 
 6. **Dedicated Agent CMS MVP**
    - roster
