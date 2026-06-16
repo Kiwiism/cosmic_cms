@@ -22,6 +22,8 @@ public final class AgentRuntimeModule implements RuntimeModule {
     private final AgentPerceptionService perceptionService;
     private final AgentScriptRunner scriptRunner;
     private final AgentScriptRepository scriptRepository;
+    private final AgentPolicyRepository policyRepository;
+    private final AgentIntentPolicyService intentPolicyService;
     private final AgentIntentDispatcher intentDispatcher;
     private final AgentPilotService pilotService;
 
@@ -37,7 +39,9 @@ public final class AgentRuntimeModule implements RuntimeModule {
         this.perceptionService = new AgentPerceptionService();
         this.scriptRunner = new AgentScriptRunner();
         this.scriptRepository = new AgentScriptRepository();
-        this.intentDispatcher = new AgentIntentDispatcher(runtimeService);
+        this.policyRepository = new AgentPolicyRepository();
+        this.intentPolicyService = new AgentIntentPolicyService(policyRepository);
+        this.intentDispatcher = new AgentIntentDispatcher(runtimeService, intentPolicyService);
         this.pilotService = new AgentPilotService(perceptionService, scriptRunner, scriptRepository, runtimeService, intentDispatcher);
     }
 
@@ -89,5 +93,9 @@ public final class AgentRuntimeModule implements RuntimeModule {
 
     public AgentIntentDispatcher intentDispatcher() {
         return intentDispatcher;
+    }
+
+    public AgentIntentPolicyService intentPolicyService() {
+        return intentPolicyService;
     }
 }

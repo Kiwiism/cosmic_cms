@@ -91,7 +91,7 @@ public final class AgentRuntimeService {
                 intentTargetType(intent),
                 null,
                 message,
-                intentDetailsJson(intent, perception, scriptSource, null)
+                plannedIntentDetailsJson(intent, perception, scriptSource)
         ));
     }
 
@@ -113,7 +113,7 @@ public final class AgentRuntimeService {
                 intentTargetType(intent),
                 null,
                 result.message(),
-                intentDetailsJson(intent, perception, scriptSource, result.message())
+                dispatchedIntentDetailsJson(intent, perception, scriptSource, result)
         ));
     }
 
@@ -152,18 +152,40 @@ public final class AgentRuntimeService {
         };
     }
 
-    private String intentDetailsJson(
+    private String plannedIntentDetailsJson(
             AgentIntent intent,
             AgentPerceptionSnapshot perception,
-            String scriptSource,
-            String dispatchMessage
+            String scriptSource
     ) {
         return "{"
                 + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
                 + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
                 + "\"durationMillis\":" + intent.durationMillis() + ","
                 + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
-                + "\"dispatchMessage\":\"" + escapeJson(dispatchMessage) + "\","
+                + "\"perception\":{"
+                + "\"available\":" + perception.available() + ","
+                + "\"players\":" + perception.players() + ","
+                + "\"monsters\":" + perception.monsters() + ","
+                + "\"drops\":" + perception.drops() + ","
+                + "\"reactors\":" + perception.reactors()
+                + "}"
+                + "}";
+    }
+
+    private String dispatchedIntentDetailsJson(
+            AgentIntent intent,
+            AgentPerceptionSnapshot perception,
+            String scriptSource,
+            AgentIntentDispatchResult dispatchResult
+    ) {
+        return "{"
+                + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                + "\"durationMillis\":" + intent.durationMillis() + ","
+                + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
+                + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
+                + "\"capability\":\"" + escapeJson(dispatchResult.capability().name()) + "\","
+                + "\"policyAllowed\":" + dispatchResult.policyAllowed() + ","
                 + "\"perception\":{"
                 + "\"available\":" + perception.available() + ","
                 + "\"players\":" + perception.players() + ","

@@ -97,6 +97,24 @@ Stores global or per-agent technical limits.
 `agent_profile_id = 0` represents a global policy. Per-agent policies can
 override global values later.
 
+The dispatcher reads capability toggles from this table before execution:
+
+- `intent.self.enabled` defaults to enabled and only allows no-op `IDLE`/`WAIT`
+- `intent.chat.enabled`
+- `intent.navigation.enabled`
+- `intent.combat.enabled`
+- `intent.loot.enabled`
+- `intent.npc.enabled`
+- `intent.shop.enabled`
+- `intent.trade.enabled`
+- `intent.party.enabled`
+- `intent.inventory.enabled`
+- `intent.script.enabled`
+
+All gameplay-facing capabilities default to disabled. Enabling a policy row only
+passes the policy gate; runtime handlers still block the intent until that
+capability is implemented.
+
 ## Migration Source
 
 The schema is created from:
