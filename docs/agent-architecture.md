@@ -111,25 +111,31 @@ controller validation.
    - runtime sessions
    - action logs
 
-3. **Minimal runtime**
+3. **Dormant runtime service layer**
+   - profile repository
+   - enabled-profile registry
+   - runtime module boundary
+   - no gameplay control yet
+
+4. **Minimal runtime**
    - load a normal character through an internal client
    - spawn/despawn safely
    - prevent duplicate real-client login
    - save state on shutdown/despawn
 
-4. **Agent CMS MVP**
+5. **Agent CMS MVP**
    - roster
    - profile detail
    - deploy/despawn controls
    - live runtime state
 
-5. **Same-map movement**
+6. **Same-map movement**
    - idle
    - town hangout
    - follow
    - patrol
 
-6. **Perception**
+7. **Perception**
    - nearby players
    - nearby agents
    - mobs
@@ -137,41 +143,41 @@ controller validation.
    - portals
    - NPCs
 
-7. **Communication**
+8. **Communication**
    - internal agent message bus
    - say/party/whisper channels
    - CMS chat bridge
 
-8. **Basic grinding**
+9. **Basic grinding**
    - target nearby mobs
    - move into range
    - basic attack
    - potion use
    - loot
 
-9. **Economy**
-   - trading
-   - stalls
-   - shop interactions
-   - economy ledger
+10. **Economy**
+    - trading
+    - stalls
+    - shop interactions
+    - economy ledger
 
-10. **Goals**
+11. **Goals**
     - primary goals
     - side goals
     - progress tracking
     - blocked goal diagnostics
 
-11. **Optional LLM**
+12. **Optional LLM**
     - local Ollama-style adapter
     - personality profiles
     - dialogue only at first
 
-12. **World travel**
+13. **World travel**
     - map portal graph
     - scroll/taxi/NPC travel policies
     - safe stuck recovery
 
-13. **Parties and expeditions**
+14. **Parties and expeditions**
     - role assignment
     - readiness checks
     - coordinator-controlled boss behavior
