@@ -9,6 +9,10 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 cosmic:
   project-path: ${COSMIC_PROJECT_PATH:../..}
+  game-database:
+    url: ${COSMIC_DB_URL:jdbc:mysql://localhost:3306/cosmic?createDatabaseIfNotExist=false}
+    username: ${COSMIC_DB_USER:${SERVER_CMS_DB_USER:root}}
+    password: ${COSMIC_DB_PASSWORD:${SERVER_CMS_DB_PASSWORD:}}
   bridge:
     url: ${COSMIC_BRIDGE_URL:http://127.0.0.1:8787}
     token: ${COSMIC_BRIDGE_TOKEN:}

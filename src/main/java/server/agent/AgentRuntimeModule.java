@@ -17,6 +17,9 @@ public final class AgentRuntimeModule implements RuntimeModule {
 
     private final AgentRegistry registry;
     private final AgentRuntimeService runtimeService;
+    private final AgentControlShell controlShell;
+    private final AgentPerceptionService perceptionService;
+    private final AgentScriptRunner scriptRunner;
 
     public AgentRuntimeModule() {
         this(new AgentRegistry(new AgentRepository()), new AgentRuntimeService());
@@ -25,6 +28,9 @@ public final class AgentRuntimeModule implements RuntimeModule {
     AgentRuntimeModule(AgentRegistry registry, AgentRuntimeService runtimeService) {
         this.registry = registry;
         this.runtimeService = runtimeService;
+        this.controlShell = new AgentControlShell(runtimeService);
+        this.perceptionService = new AgentPerceptionService();
+        this.scriptRunner = new AgentScriptRunner();
     }
 
     @Override
@@ -49,5 +55,17 @@ public final class AgentRuntimeModule implements RuntimeModule {
 
     public AgentRuntimeService runtimeService() {
         return runtimeService;
+    }
+
+    public AgentControlShell controlShell() {
+        return controlShell;
+    }
+
+    public AgentPerceptionService perceptionService() {
+        return perceptionService;
+    }
+
+    public AgentScriptRunner scriptRunner() {
+        return scriptRunner;
     }
 }

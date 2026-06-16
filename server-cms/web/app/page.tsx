@@ -6,12 +6,12 @@ import {CmsNavItem,CmsShell} from "../components/layout/CmsShell";
 import {PageToolbar} from "../components/ui/PageToolbar";
 import {api} from "../lib/api";
 
-type View="overview"|"settings"|"worlds"|"commands"|"security"|"performance"|"maintenance"|"diagnostics"|"deployments"|"audit";
+type View="overview"|"settings"|"worlds"|"commands"|"agents"|"security"|"performance"|"maintenance"|"diagnostics"|"deployments"|"audit";
 type Setting=Record<string,any>;
 type WorldSummary={id:number;name:string;active:boolean};
 const nav:readonly CmsNavItem<View>[]=[
  {key:"overview",label:"Overview",icon:Activity},{key:"settings",label:"Features & general",icon:Settings2},{key:"worlds",label:"Worlds & rates",icon:Gauge},
- {key:"commands",label:"Commands",icon:SlidersHorizontal},{key:"security",label:"Access & security",icon:ShieldCheck},
+ {key:"commands",label:"Commands",icon:SlidersHorizontal},{key:"agents",label:"Agents",icon:Network},{key:"security",label:"Access & security",icon:ShieldCheck},
  {key:"performance",label:"Runtime & schedulers",icon:Clock3},{key:"maintenance",label:"Maintenance",icon:Wrench},
  {key:"diagnostics",label:"Diagnostics & logs",icon:Network},{key:"deployments",label:"Deployments",icon:Database},{key:"audit",label:"Audit & rollback",icon:History}
 ];
@@ -39,7 +39,8 @@ export default function App(){
    {view==="settings"&&<Configuration refreshKey={settingsVersion} onOpen={setDrawer}/>}
    {view==="worlds"&&<WorldsAndRates refreshKey={settingsVersion} onOpen={setDrawer}/>}
    {view==="commands"&&<Commands onOpen={setDrawer}/>}
-   {view!=="overview"&&view!=="settings"&&view!=="worlds"&&view!=="commands"&&view!=="audit"&&<CategoryPage view={view} refreshKey={settingsVersion} onOpen={setDrawer}/>}
+   {view==="agents"&&<Agents/>}
+   {view!=="overview"&&view!=="settings"&&view!=="worlds"&&view!=="commands"&&view!=="agents"&&view!=="audit"&&<CategoryPage view={view} refreshKey={settingsVersion} onOpen={setDrawer}/>}
    {view==="audit"&&<Audit refreshKey={settingsVersion}/>}
   </CmsShell>
 }
@@ -96,6 +97,41 @@ function CategoryPage({view,refreshKey,onOpen}:{view:View;refreshKey:number;onOp
  const fullWidth=view==="diagnostics"||view==="deployments";
  const [rows,setRows]=useState<Setting[]>([]);useEffect(()=>{Promise.all((map[view]||[]).map(category=>api<Setting[]>(`/api/settings?category=${encodeURIComponent(category)}`))).then(x=>setRows(x.flat()))},[view,refreshKey]);
  return <><article className="panel intro"><Title title={nav.find(x=>x.key===view)?.label||view} sub="Settings are grouped here without losing their original source and compatibility metadata."/></article><div className={fullWidth?"full-width-list":"settings-grid"}>{rows.map(s=><SettingCard key={s.setting_key} setting={s} open={()=>onOpen(s)}/>)}</div>{!rows.length&&<article className="panel"><p className="muted">This operations module is scaffolded for the next managed controls. Use Configuration to browse the current catalog.</p></article>}</>
+}
+
+function Agents(){
+ const [agents,setAgents]=useState<any[]>([]),[selected,setSelected]=useState<any|null>(null),[q,setQ]=useState(""),[charQ,setCharQ]=useState(""),[chars,setChars]=useState<any[]>([]),[plan,setPlan]=useState<any|null>(null),[logs,setLogs]=useState<any[]>([]),[reason,setReason]=useState("Updated through Server CMS"),[error,setError]=useState("");
+ const load=()=>api<any[]>(`/api/agents?q=${encodeURIComponent(q)}`).then(rows=>{setAgents(rows);if(selected){const next=rows.find(row=>row.id===selected.id);if(next)setSelected(next)}}).catch(x=>setError((x as Error).message));
+ useEffect(()=>{const timer=setTimeout(load,160);return()=>clearTimeout(timer)},[q]);
+ useEffect(()=>{if(!selected){setPlan(null);setLogs([]);return}api(`/api/agents/${selected.id}/spawn-plan`).then(setPlan).catch(()=>setPlan(null));api<any[]>(`/api/agents/${selected.id}/logs`).then(setLogs).catch(()=>setLogs([]))},[selected?.id]);
+ useEffect(()=>{const timer=setTimeout(()=>{if(charQ.trim().length<2){setChars([]);return}api<any[]>(`/api/agents/characters?q=${encodeURIComponent(charQ)}`).then(setChars).catch(()=>setChars([]))},160);return()=>clearTimeout(timer)},[charQ]);
+ async function createAgent(characterId:number){setError("");try{const created=await api<any>("/api/agents",{method:"POST",body:JSON.stringify({characterId,enabled:false,defaultMode:"IDLE",behaviorProfile:"default",personalityProfile:"default",llmEnabled:false})});setSelected(created);setCharQ("");setChars([]);load()}catch(x){setError((x as Error).message)}}
+ async function saveAgent(){if(!selected)return;setError("");try{const updated=await api<any>(`/api/agents/${selected.id}`,{method:"PUT",body:JSON.stringify({enabled:Boolean(selected.enabled),displayName:selected.display_name,defaultMode:selected.default_mode,behaviorProfile:selected.behavior_profile,personalityProfile:selected.personality_profile,scriptName:selected.script_name,llmEnabled:Boolean(selected.llm_enabled),reason})});setSelected(updated);load()}catch(x){setError((x as Error).message)}}
+ return <><article className="panel intro"><Title title="Agent foundation" sub="Dormant agent profiles, control preflight, logs and future behavior wiring. Runtime remains disabled unless enabled in Features & general."/></article>
+  <PageToolbar query={q} onQueryChange={setQ} placeholder="Search agent, account, character or ID"/>
+  {error&&<div className="error">{error}</div>}
+  <div className="agent-layout"><section className="panel"><Title title="Agent roster" sub={`${agents.length} profiles. Disabled profiles never enter the runtime registry.`}/>
+   <div className="agent-list">{agents.map(agent=><button className={`agent-card ${selected?.id===agent.id?"selected":""}`} key={agent.id} onClick={()=>setSelected(agent)}>
+    <div><strong>{agent.display_name||agent.character_name}</strong><small>{agent.account_name} {"->"} {agent.character_name} · Lv. {agent.level} · World {agent.world}</small></div>
+    <span className={agent.enabled?"active-state":"inactive-state"}>{agent.enabled?"Enabled":"Disabled"}</span></button>)}</div></section>
+   <section className="panel"><Title title="Create from character" sub="Regular Cosmic characters can be marked as future agents without changing their account."/>
+    <div className="search compact"><Network size={17}/><input value={charQ} onChange={e=>setCharQ(e.target.value)} placeholder="Search account, IGN or character ID"/></div>
+    <div className="agent-list compact-list">{chars.map(character=><button className="agent-card" disabled={Boolean(character.agent_profile_id)} key={character.id} onClick={()=>createAgent(character.id)}>
+     <div><strong>{character.account_name} {"->"} {character.character_name}</strong><small>Lv. {character.level} · Job {character.job} · World {character.world} · Map {character.map}</small></div>
+     <span className={character.agent_profile_id?"inactive-state":"active-state"}>{character.agent_profile_id?"Already agent":"Create"}</span></button>)}</div></section></div>
+  {selected&&<div className="agent-detail"><section className="panel"><Title title={`${selected.display_name||selected.character_name} profile`} sub="These settings are persisted in the game database agent tables and picked up by Cosmic after restart."/>
+   <div className="value-grid agent-edit"><label><small>Enabled</small><select className="edit" value={String(Boolean(selected.enabled))} onChange={e=>setSelected({...selected,enabled:e.target.value==="true"})}><option value="false">false</option><option value="true">true</option></select></label>
+    <label><small>Display name</small><input className="edit" value={selected.display_name||""} onChange={e=>setSelected({...selected,display_name:e.target.value})}/></label>
+    <label><small>Default mode</small><input className="edit" value={selected.default_mode||"IDLE"} onChange={e=>setSelected({...selected,default_mode:e.target.value})}/></label>
+    <label><small>Behavior profile</small><input className="edit" value={selected.behavior_profile||"default"} onChange={e=>setSelected({...selected,behavior_profile:e.target.value})}/></label>
+    <label><small>Personality profile</small><input className="edit" value={selected.personality_profile||"default"} onChange={e=>setSelected({...selected,personality_profile:e.target.value})}/></label>
+    <label><small>Script name</small><input className="edit" value={selected.script_name||""} onChange={e=>setSelected({...selected,script_name:e.target.value})}/></label>
+    <label><small>LLM enabled</small><select className="edit" value={String(Boolean(selected.llm_enabled))} onChange={e=>setSelected({...selected,llm_enabled:e.target.value==="true"})}><option value="false">false</option><option value="true">true</option></select></label></div>
+   <textarea value={reason} onChange={e=>setReason(e.target.value)} /><div className="actions"><button className="primary" onClick={saveAgent}>Save profile</button></div></section>
+   <section className="panel"><Title title="Control preflight" sub="Readiness check for the future control shell; this does not start an agent."/>
+    {plan?<div className="value-grid"><Tile label="Ready" value={String(plan.ready)}/><Tile label="World" value={plan.world}/><Tile label="Channel" value={plan.channel}/><Tile label="Map" value={plan.mapId}/><Tile label="Spawn point" value={plan.spawnPoint}/><Tile label="Message" value={plan.message}/></div>:<p className="muted">Select an agent to view preflight state.</p>}</section>
+   <section className="panel full-span"><Title title="Recent action logs" sub="Lifecycle and future action records from agent_action_logs"/>
+    {logs.length?logs.map(log=><div className="audit-row" key={log.id}><strong>{log.action_type}</strong><code>{log.status}</code><span>{String(log.created_at)}</span><p>{log.message}</p></div>):<p className="muted">No runtime logs yet.</p>}</section></div>}</>
 }
 
 function Commands({onOpen}:{onOpen:(s:Setting)=>void}){

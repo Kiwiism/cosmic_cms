@@ -119,27 +119,36 @@ controller validation.
    - read-only spawn planning
    - runtime session lifecycle service
    - action logging boundary
+   - control shell reservation boundary
+   - read-only map perception counts
+   - non-executing script-to-intent parser
    - no gameplay control yet
 
-4. **Minimal runtime**
+4. **Server CMS foundation**
+   - create and edit agent profiles from existing characters
+   - inspect spawn preflight state
+   - inspect runtime sessions and action logs
+   - separate Server CMS database from game database access
+
+5. **Minimal runtime**
    - load a normal character through an internal client
    - spawn/despawn safely
    - prevent duplicate real-client login
    - save state on shutdown/despawn
 
-5. **Agent CMS MVP**
+6. **Dedicated Agent CMS MVP**
    - roster
    - profile detail
    - deploy/despawn controls
    - live runtime state
 
-6. **Same-map movement**
+7. **Same-map movement**
    - idle
    - town hangout
    - follow
    - patrol
 
-7. **Perception**
+8. **Perception**
    - nearby players
    - nearby agents
    - mobs
@@ -147,41 +156,41 @@ controller validation.
    - portals
    - NPCs
 
-8. **Communication**
+9. **Communication**
    - internal agent message bus
    - say/party/whisper channels
    - CMS chat bridge
 
-9. **Basic grinding**
+10. **Basic grinding**
    - target nearby mobs
    - move into range
    - basic attack
    - potion use
    - loot
 
-10. **Economy**
+11. **Economy**
     - trading
     - stalls
     - shop interactions
     - economy ledger
 
-11. **Goals**
+12. **Goals**
     - primary goals
     - side goals
     - progress tracking
     - blocked goal diagnostics
 
-12. **Optional LLM**
+13. **Optional LLM**
     - local Ollama-style adapter
     - personality profiles
     - dialogue only at first
 
-13. **World travel**
+14. **World travel**
     - map portal graph
     - scroll/taxi/NPC travel policies
     - safe stuck recovery
 
-14. **Parties and expeditions**
+15. **Parties and expeditions**
     - role assignment
     - readiness checks
     - coordinator-controlled boss behavior

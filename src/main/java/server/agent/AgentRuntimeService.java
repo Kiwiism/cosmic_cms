@@ -40,6 +40,10 @@ public final class AgentRuntimeService {
         repository.updateSessionState(session.id(), AgentRuntimeState.RUNNING, task);
     }
 
+    public void markIdle(AgentRuntimeSession session, String task) throws SQLException {
+        repository.updateSessionState(session.id(), AgentRuntimeState.IDLE, task);
+    }
+
     public void heartbeat(AgentRuntimeSession session, String task) throws SQLException {
         repository.heartbeat(session.id(), task);
     }
