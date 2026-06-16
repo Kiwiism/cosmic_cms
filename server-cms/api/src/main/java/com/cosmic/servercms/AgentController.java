@@ -197,6 +197,48 @@ public class AgentController {
                 """, id);
     }
 
+    @GetMapping("/{id}/goals")
+    List<Map<String, Object>> goals(@PathVariable int id) {
+        agent(id);
+        return gameJdbc.queryForList("""
+                SELECT *
+                FROM agent_goals
+                WHERE agent_profile_id=?
+                ORDER BY FIELD(status, 'ACTIVE', 'RUNNING', 'PENDING', 'PAUSED', 'COMPLETED', 'FAILED'),
+                         priority DESC, id ASC
+                LIMIT 100
+                """, id);
+    }
+
+    @PostMapping("/{id}/goals")
+    @ResponseStatus(HttpStatus.CREATED)
+    Map<String, Object> createGoal(@PathVariable int id, @Valid @RequestBody CreateGoal body, Principal principal) {
+        agent(id);
+        gameJdbc.update("""
+                INSERT INTO agent_goals(agent_profile_id, goal_type, priority, status, target_world, target_channel,
+                                        target_map, target_ref, parameters_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                id,
+                valueOr(body.goalType(), "IDLE"),
+                body.priority() == null ? 0 : body.priority(),
+                valueOr(body.status(), "PENDING"),
+                body.targetWorld(),
+                body.targetChannel(),
+                body.targetMap(),
+                body.targetRef(),
+                body.parametersJson());
+        Map<String, Object> created = oneGame("""
+                SELECT *
+                FROM agent_goals
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 1
+                """, id);
+        audit(principal, "AGENT_GOAL_CREATE", "agent:" + id + ":goal:" + created.get("id"), null, created,
+                "Created agent goal through Server CMS");
+        return created;
+    }
+
     @GetMapping("/{id}/policies")
     List<Map<String, Object>> policies(@PathVariable int id) {
         agent(id);
@@ -340,4 +382,15 @@ public class AgentController {
     record UpdatePolicy(Boolean enabled, String reason) {}
 
     record AgentCapabilityPolicy(String key, String label, String description, boolean defaultEnabled) {}
+
+    record CreateGoal(
+            String goalType,
+            Integer priority,
+            String status,
+            Integer targetWorld,
+            Integer targetChannel,
+            Integer targetMap,
+            String targetRef,
+            String parametersJson
+    ) {}
 }

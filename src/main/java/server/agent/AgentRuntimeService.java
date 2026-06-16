@@ -78,7 +78,8 @@ public final class AgentRuntimeService {
             AgentManagedCharacter managed,
             AgentIntent intent,
             AgentPerceptionSnapshot perception,
-            String scriptSource,
+            AgentKnowledgeSnapshot knowledge,
+            AgentPlan plan,
             String message
     ) throws SQLException {
         repository.logAction(new AgentActionLogEntry(
@@ -90,9 +91,9 @@ public final class AgentRuntimeService {
                 perception.channel(),
                 perception.mapId(),
                 intentTargetType(intent),
-                null,
+                plan.goal() == null ? null : plan.goal().id(),
                 message,
-                plannedIntentDetailsJson(intent, perception, scriptSource)
+                plannedIntentDetailsJson(intent, perception, knowledge, plan)
         ));
     }
 
@@ -123,7 +124,8 @@ public final class AgentRuntimeService {
             AgentIntent intent,
             AgentIntentDispatchResult dispatchResult,
             AgentPerceptionSnapshot perception,
-            String scriptSource
+            AgentKnowledgeSnapshot knowledge,
+            AgentPlan plan
     ) throws SQLException {
         repository.remember(new AgentMemoryEvent(
                 managed.profileId(),
@@ -138,7 +140,8 @@ public final class AgentRuntimeService {
                         + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
                         + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
                         + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
-                        + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
+                        + "\"plan\":" + planDetailsJson(plan) + ","
+                        + "\"knowledge\":" + knowledgeDetailsJson(knowledge) + ","
                         + "\"perception\":" + perceptionDetailsJson(perception)
                         + "}"
         ));
@@ -203,15 +206,102 @@ public final class AgentRuntimeService {
     private String plannedIntentDetailsJson(
             AgentIntent intent,
             AgentPerceptionSnapshot perception,
-            String scriptSource
+            AgentKnowledgeSnapshot knowledge,
+            AgentPlan plan
     ) {
         return "{"
                 + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
                 + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
                 + "\"durationMillis\":" + intent.durationMillis() + ","
-                + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
+                + "\"plan\":" + planDetailsJson(plan) + ","
+                + "\"knowledge\":" + knowledgeDetailsJson(knowledge) + ","
                 + "\"perception\":" + perceptionDetailsJson(perception)
                 + "}";
+    }
+
+    private String planDetailsJson(AgentPlan plan) {
+        return "{"
+                + "\"source\":\"" + escapeJson(plan.source()) + "\","
+                + "\"reason\":\"" + escapeJson(plan.reason()) + "\","
+                + "\"goal\":" + goalDetailsJson(plan.goal())
+                + "}";
+    }
+
+    private String goalDetailsJson(AgentGoal goal) {
+        if (goal == null) {
+            return "null";
+        }
+        return "{"
+                + "\"id\":" + goal.id() + ","
+                + "\"type\":\"" + escapeJson(goal.goalType()) + "\","
+                + "\"priority\":" + goal.priority() + ","
+                + "\"status\":\"" + escapeJson(goal.status()) + "\","
+                + "\"targetWorld\":" + nullableNumber(goal.targetWorld()) + ","
+                + "\"targetChannel\":" + nullableNumber(goal.targetChannel()) + ","
+                + "\"targetMap\":" + nullableNumber(goal.targetMap()) + ","
+                + "\"targetRef\":\"" + escapeJson(goal.targetRef()) + "\""
+                + "}";
+    }
+
+    private String knowledgeDetailsJson(AgentKnowledgeSnapshot knowledge) {
+        return "{"
+                + "\"level\":" + knowledge.level() + ","
+                + "\"jobId\":" + knowledge.jobId() + ","
+                + "\"meso\":" + knowledge.meso() + ","
+                + "\"skills\":" + skillsJson(knowledge.skills()) + ","
+                + "\"inventories\":" + inventoriesJson(knowledge.inventories())
+                + "}";
+    }
+
+    private String skillsJson(List<AgentKnowledgeSnapshot.SkillSummary> skills) {
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < skills.size(); i++) {
+            AgentKnowledgeSnapshot.SkillSummary skill = skills.get(i);
+            if (i > 0) {
+                builder.append(',');
+            }
+            builder.append("{")
+                    .append("\"skillId\":").append(skill.skillId()).append(',')
+                    .append("\"level\":").append(skill.level()).append(',')
+                    .append("\"masterLevel\":").append(skill.masterLevel()).append(',')
+                    .append("\"expiration\":").append(skill.expiration())
+                    .append("}");
+        }
+        return builder.append(']').toString();
+    }
+
+    private String inventoriesJson(List<AgentKnowledgeSnapshot.InventorySummary> inventories) {
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < inventories.size(); i++) {
+            AgentKnowledgeSnapshot.InventorySummary inventory = inventories.get(i);
+            if (i > 0) {
+                builder.append(',');
+            }
+            builder.append("{")
+                    .append("\"type\":\"").append(escapeJson(inventory.type())).append("\",")
+                    .append("\"slotLimit\":").append(inventory.slotLimit()).append(',')
+                    .append("\"usedSlots\":").append(inventory.usedSlots()).append(',')
+                    .append("\"totalQuantity\":").append(inventory.totalQuantity()).append(',')
+                    .append("\"sampleItems\":").append(itemsJson(inventory.sampleItems()))
+                    .append("}");
+        }
+        return builder.append(']').toString();
+    }
+
+    private String itemsJson(List<AgentKnowledgeSnapshot.ItemStackSummary> items) {
+        StringBuilder builder = new StringBuilder("[");
+        for (int i = 0; i < items.size(); i++) {
+            AgentKnowledgeSnapshot.ItemStackSummary item = items.get(i);
+            if (i > 0) {
+                builder.append(',');
+            }
+            builder.append("{")
+                    .append("\"itemId\":").append(item.itemId()).append(',')
+                    .append("\"quantity\":").append(item.quantity()).append(',')
+                    .append("\"position\":").append(item.position())
+                    .append("}");
+        }
+        return builder.append(']').toString();
     }
 
     private String dispatchedIntentDetailsJson(

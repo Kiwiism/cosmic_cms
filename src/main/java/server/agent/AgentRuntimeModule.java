@@ -20,8 +20,11 @@ public final class AgentRuntimeModule implements RuntimeModule {
     private final AgentControlShell controlShell;
     private final AgentSpawnCoordinator spawnCoordinator;
     private final AgentPerceptionService perceptionService;
+    private final AgentKnowledgeService knowledgeService;
     private final AgentScriptRunner scriptRunner;
     private final AgentScriptRepository scriptRepository;
+    private final AgentGoalRepository goalRepository;
+    private final AgentPlannerService plannerService;
     private final AgentPolicyRepository policyRepository;
     private final AgentIntentPolicyService intentPolicyService;
     private final AgentIntentDispatcher intentDispatcher;
@@ -38,12 +41,15 @@ public final class AgentRuntimeModule implements RuntimeModule {
         this.controlShell = new AgentControlShell(runtimeService);
         this.spawnCoordinator = new AgentSpawnCoordinator(runtimeService, controlShell);
         this.perceptionService = new AgentPerceptionService();
+        this.knowledgeService = new AgentKnowledgeService();
         this.scriptRunner = new AgentScriptRunner();
         this.scriptRepository = new AgentScriptRepository();
+        this.goalRepository = new AgentGoalRepository();
+        this.plannerService = new AgentPlannerService(goalRepository, scriptRunner, scriptRepository);
         this.policyRepository = new AgentPolicyRepository();
         this.intentPolicyService = new AgentIntentPolicyService(policyRepository);
         this.intentDispatcher = new AgentIntentDispatcher(runtimeService, intentPolicyService);
-        this.pilotService = new AgentPilotService(perceptionService, scriptRunner, scriptRepository, runtimeService, intentDispatcher);
+        this.pilotService = new AgentPilotService(perceptionService, knowledgeService, plannerService, runtimeService, intentDispatcher);
         this.tickScheduler = new AgentTickScheduler(spawnCoordinator, pilotService);
     }
 
