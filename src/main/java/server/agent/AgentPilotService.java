@@ -19,17 +19,20 @@ public final class AgentPilotService {
     private final AgentScriptRunner scriptRunner;
     private final AgentScriptRepository scriptRepository;
     private final AgentRuntimeService runtimeService;
+    private final AgentIntentDispatcher intentDispatcher;
 
     public AgentPilotService(
             AgentPerceptionService perceptionService,
             AgentScriptRunner scriptRunner,
             AgentScriptRepository scriptRepository,
-            AgentRuntimeService runtimeService
+            AgentRuntimeService runtimeService,
+            AgentIntentDispatcher intentDispatcher
     ) {
         this.perceptionService = perceptionService;
         this.scriptRunner = scriptRunner;
         this.scriptRepository = scriptRepository;
         this.runtimeService = runtimeService;
+        this.intentDispatcher = intentDispatcher;
     }
 
     public AgentPilotTickResult dryRunTick(AgentManagedCharacter managed) throws SQLException {
@@ -44,12 +47,14 @@ public final class AgentPilotService {
 
         String message = "Planned " + intent.type() + " intent from " + scriptBody.source();
         runtimeService.logPlannedIntent(managed, intent, perception, scriptBody.source(), message);
+        AgentIntentDispatchResult dispatchResult = intentDispatcher.dispatch(managed, intent, perception, scriptBody.source());
         runtimeService.heartbeat(managed.session(), message);
 
         return new AgentPilotTickResult(
                 managed.profileId(),
                 managed.session().id(),
                 intent,
+                dispatchResult,
                 perception,
                 scriptBody.source(),
                 message,

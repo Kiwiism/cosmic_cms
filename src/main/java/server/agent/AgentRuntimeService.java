@@ -91,7 +91,29 @@ public final class AgentRuntimeService {
                 intentTargetType(intent),
                 null,
                 message,
-                intentDetailsJson(intent, perception, scriptSource)
+                intentDetailsJson(intent, perception, scriptSource, null)
+        ));
+    }
+
+    public void logDispatchedIntent(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentPerceptionSnapshot perception,
+            String scriptSource,
+            AgentIntentDispatchResult result
+    ) throws SQLException {
+        repository.logAction(new AgentActionLogEntry(
+                managed.profileId(),
+                managed.session().id(),
+                "INTENT_DISPATCH",
+                result.status(),
+                perception.world(),
+                perception.channel(),
+                perception.mapId(),
+                intentTargetType(intent),
+                null,
+                result.message(),
+                intentDetailsJson(intent, perception, scriptSource, result.message())
         ));
     }
 
@@ -125,12 +147,18 @@ public final class AgentRuntimeService {
         };
     }
 
-    private String intentDetailsJson(AgentIntent intent, AgentPerceptionSnapshot perception, String scriptSource) {
+    private String intentDetailsJson(
+            AgentIntent intent,
+            AgentPerceptionSnapshot perception,
+            String scriptSource,
+            String dispatchMessage
+    ) {
         return "{"
                 + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
                 + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
                 + "\"durationMillis\":" + intent.durationMillis() + ","
                 + "\"scriptSource\":\"" + escapeJson(scriptSource) + "\","
+                + "\"dispatchMessage\":\"" + escapeJson(dispatchMessage) + "\","
                 + "\"perception\":{"
                 + "\"available\":" + perception.available() + ","
                 + "\"players\":" + perception.players() + ","

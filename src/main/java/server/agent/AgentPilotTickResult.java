@@ -6,6 +6,7 @@ public record AgentPilotTickResult(
         int profileId,
         long runtimeSessionId,
         AgentIntent intent,
+        AgentIntentDispatchResult dispatchResult,
         AgentPerceptionSnapshot perception,
         String scriptSource,
         String message,
