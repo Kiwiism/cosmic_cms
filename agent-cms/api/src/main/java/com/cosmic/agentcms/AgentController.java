@@ -1,4 +1,4 @@
-package com.cosmic.servercms;
+package com.cosmic.agentcms;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
@@ -112,7 +112,7 @@ public class AgentController {
                 JOIN accounts a ON a.id = c.accountid
                 WHERE p.character_id=?
                 """, body.characterId());
-        audit(principal, "AGENT_PROFILE_CREATE", "agent:" + created.get("id"), null, created, "Created through Server CMS");
+        audit(principal, "AGENT_PROFILE_CREATE", "agent:" + created.get("id"), null, created, "Created through Agent CMS");
         return created;
     }
 
@@ -134,7 +134,7 @@ public class AgentController {
                 Boolean.TRUE.equals(body.llmEnabled()),
                 id);
         Map<String, Object> after = agent(id);
-        audit(principal, "AGENT_PROFILE_UPDATE", "agent:" + id, before, after, valueOr(body.reason(), "Updated through Server CMS"));
+        audit(principal, "AGENT_PROFILE_UPDATE", "agent:" + id, before, after, valueOr(body.reason(), "Updated through Agent CMS"));
         return after;
     }
 
@@ -227,7 +227,7 @@ public class AgentController {
                 ORDER BY id DESC LIMIT 1
                 """);
         audit(principal, "AGENT_SCRIPT_CREATE", "agent_script:" + created.get("id"), null, created,
-                valueOr(body.reason(), "Created agent script through Server CMS"));
+                valueOr(body.reason(), "Created agent script through Agent CMS"));
         return created;
     }
 
@@ -255,7 +255,7 @@ public class AgentController {
                 WHERE id=?
                 """, scriptId);
         audit(principal, "AGENT_SCRIPT_UPDATE", "agent_script:" + scriptId, before, after,
-                valueOr(body.reason(), "Updated agent script through Server CMS"));
+                valueOr(body.reason(), "Updated agent script through Agent CMS"));
         return after;
     }
 
@@ -297,7 +297,7 @@ public class AgentController {
                 ORDER BY id DESC LIMIT 1
                 """, id);
         audit(principal, "AGENT_GOAL_CREATE", "agent:" + id + ":goal:" + created.get("id"), null, created,
-                "Created agent goal through Server CMS");
+                "Created agent goal through Agent CMS");
         return created;
     }
 
@@ -328,7 +328,7 @@ public class AgentController {
                 WHERE id=? AND agent_profile_id=?
                 """, goalId, id);
         audit(principal, "AGENT_GOAL_STATUS", "agent:" + id + ":goal:" + goalId, before, after,
-                valueOr(body.reason(), "Updated agent goal status through Server CMS"));
+                valueOr(body.reason(), "Updated agent goal status through Agent CMS"));
         return after;
     }
 
@@ -379,13 +379,13 @@ public class AgentController {
                 .findFirst()
                 .orElseThrow();
         audit(principal, "AGENT_POLICY_SET", "agent:" + id + ":" + key, before, after,
-                valueOr(body.reason(), "Updated agent policy through Server CMS"));
+                valueOr(body.reason(), "Updated agent policy through Agent CMS"));
         return after;
     }
 
     @DeleteMapping("/{id}/policies/{key}")
     Map<String, Object> resetPolicy(@PathVariable int id, @PathVariable String key,
-                                    @RequestParam(defaultValue = "Reset agent policy through Server CMS") String reason,
+                                    @RequestParam(defaultValue = "Reset agent policy through Agent CMS") String reason,
                                     Principal principal) {
         agent(id);
         if (CAPABILITY_POLICIES.stream().noneMatch(policy -> policy.key().equals(key))) {
@@ -413,7 +413,7 @@ public class AgentController {
         Map<String, Object> before = agent(id);
         Map<String, Object> result = bridge.agentAction(id, action);
         audit(principal, "AGENT_RUNTIME_" + action.toUpperCase(), "agent:" + id, before, result,
-                "Manual agent runtime action through Server CMS");
+                "Manual agent runtime action through Agent CMS");
         return result;
     }
 
@@ -454,9 +454,9 @@ public class AgentController {
 
     private void audit(Principal principal, String action, String key, Object before, Object after, String reason) {
         try {
-            Long actor = cmsJdbc.queryForObject("SELECT id FROM server_cms_users WHERE username=?", Long.class, principal.getName());
+            Long actor = cmsJdbc.queryForObject("SELECT id FROM agent_cms_users WHERE username=?", Long.class, principal.getName());
             cmsJdbc.update("""
-                    INSERT INTO server_cms_audit(actor_user_id,action,entity_key,before_json,after_json,reason,outcome)
+                    INSERT INTO agent_cms_audit(actor_user_id,action,entity_key,before_json,after_json,reason,outcome)
                     VALUES (?,?,?,?,?,?,'SAVED')
                     """, actor, action, key, before == null ? null : mapper.writeValueAsString(before),
                     after == null ? null : mapper.writeValueAsString(after), reason);

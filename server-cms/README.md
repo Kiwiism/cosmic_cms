@@ -20,16 +20,6 @@ has `CREATE` permission for databases and tables. Existing schemas and records
 are preserved; subsequent startups apply only Liquibase migrations that have not
 already run.
 
-The Agents page reads and writes the game database agent tables. By default it
-uses the same MySQL username and password as Server CMS and connects to the
-`cosmic` schema. Override it with:
-
-```powershell
-COSMIC_DB_URL=jdbc:mysql://localhost:3306/cosmic?createDatabaseIfNotExist=false
-COSMIC_DB_USER=root
-COSMIC_DB_PASSWORD=your_mysql_password
-```
-
 ## Start
 
 From PowerShell:
