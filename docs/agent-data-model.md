@@ -69,6 +69,12 @@ policy succeeds. Cooldowns can be configured globally or per-agent through
 logged as dispatch rows, but only successful dispatches start the next cooldown
 window.
 
+Agent CMS exposes these cooldowns separately from capability allow/block
+policies. This keeps safety policy and action pacing independent: staff can
+allow navigation while still slowing portal/follow attempts, or allow chat while
+rate-limiting SAY intents. Per-agent cooldown rows override global rows; unset
+rows fall back to the server defaults.
+
 When `USE_AGENT_RUNTIME` is enabled, the runtime starts a maintenance scheduler
 that ticks already-entered agent characters every 5 seconds. The
 scheduler does not create sessions, enter characters, or spawn agents by itself;

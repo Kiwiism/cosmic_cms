@@ -35,6 +35,23 @@ public class AgentController {
             new AgentCapabilityPolicy("intent.inventory.enabled", "Inventory", "Allows future USEITEM and EQUIP intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.script.enabled", "Script fallback", "Allows unknown script intents to pass the policy gate. Keep disabled unless debugging parser behavior.", false)
     );
+    private static final List<AgentCooldownPolicy> COOLDOWN_POLICIES = List.of(
+            new AgentCooldownPolicy("cooldown.self.millis", "Self capability", "Default pacing for IDLE and WAIT no-op intents.", 0),
+            new AgentCooldownPolicy("cooldown.chat.millis", "Chat capability", "Default pacing for chat intents.", 10_000),
+            new AgentCooldownPolicy("cooldown.navigation.millis", "Navigation capability", "Default pacing for route, movement and portal intents.", 1_000),
+            new AgentCooldownPolicy("cooldown.combat.millis", "Combat capability", "Default pacing for future attack and grind intents.", 1_000),
+            new AgentCooldownPolicy("cooldown.loot.millis", "Loot capability", "Default pacing for nearby pickup attempts.", 750),
+            new AgentCooldownPolicy("cooldown.npc.millis", "NPC capability", "Default pacing for future NPC interaction intents.", 2_000),
+            new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for future shop interaction intents.", 2_000),
+            new AgentCooldownPolicy("cooldown.trade.millis", "Trade capability", "Default pacing for future trade intents.", 5_000),
+            new AgentCooldownPolicy("cooldown.party.millis", "Party capability", "Default pacing for future party intents.", 3_000),
+            new AgentCooldownPolicy("cooldown.inventory.millis", "Inventory capability", "Default pacing for future item use and equip intents.", 1_500),
+            new AgentCooldownPolicy("cooldown.script.millis", "Script fallback capability", "Default pacing for unknown script intents.", 1_000),
+            new AgentCooldownPolicy("cooldown.say.millis", "SAY override", "Optional override for SAY intent pacing. Falls back to chat capability when unset.", 10_000),
+            new AgentCooldownPolicy("cooldown.move_to_map.millis", "MOVE_TO_MAP override", "Optional override for multi-map navigation pacing.", 1_000),
+            new AgentCooldownPolicy("cooldown.follow_character.millis", "FOLLOW_CHARACTER override", "Optional override for companion/follow pacing.", 1_000),
+            new AgentCooldownPolicy("cooldown.use_portal.millis", "USE_PORTAL override", "Optional override for portal transition pacing.", 1_000)
+    );
 
     public AgentController(JdbcTemplate cmsJdbc, @Qualifier("gameJdbc") JdbcTemplate gameJdbc, ObjectMapper mapper,
                            BridgeClient bridge) {
@@ -443,6 +460,80 @@ public class AgentController {
         return after;
     }
 
+    @GetMapping("/{id}/cooldowns")
+    List<Map<String, Object>> cooldowns(@PathVariable int id) {
+        agent(id);
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (AgentCooldownPolicy cooldown : COOLDOWN_POLICIES) {
+            String globalValue = policyValue(0, cooldown.key());
+            String agentValue = policyValue(id, cooldown.key());
+            long effective = parseNonNegativeLong(agentValue == null ? globalValue : agentValue, cooldown.defaultMillis());
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("key", cooldown.key());
+            row.put("label", cooldown.label());
+            row.put("description", cooldown.description());
+            row.put("defaultMillis", cooldown.defaultMillis());
+            row.put("globalValue", globalValue);
+            row.put("agentValue", agentValue);
+            row.put("effectiveMillis", effective);
+            row.put("overridden", agentValue != null);
+            rows.add(row);
+        }
+        return rows;
+    }
+
+    @PutMapping("/{id}/cooldowns/{key}")
+    Map<String, Object> updateCooldown(@PathVariable int id, @PathVariable String key,
+                                       @Valid @RequestBody UpdateCooldown body, Principal principal) {
+        agent(id);
+        AgentCooldownPolicy cooldown = COOLDOWN_POLICIES.stream()
+                .filter(policy -> policy.key().equals(key))
+                .findFirst()
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown agent cooldown"));
+        long millis = body.millis() == null ? cooldown.defaultMillis() : body.millis();
+        if (millis < 0 || millis > 3_600_000) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cooldown must be between 0 and 3,600,000 ms");
+        }
+
+        Map<String, Object> before = new LinkedHashMap<>();
+        before.put("key", key);
+        before.put("agentValue", policyValue(id, key));
+        gameJdbc.update("""
+                INSERT INTO agent_policies(agent_profile_id, scope, policy_key, policy_value)
+                VALUES (?, 'AGENT', ?, ?)
+                ON DUPLICATE KEY UPDATE policy_value=VALUES(policy_value)
+                """, id, key, Long.toString(millis));
+        Map<String, Object> after = cooldowns(id).stream()
+                .filter(row -> key.equals(row.get("key")))
+                .findFirst()
+                .orElseThrow();
+        audit(principal, "AGENT_COOLDOWN_SET", "agent:" + id + ":" + key, before, after,
+                valueOr(body.reason(), "Updated agent cooldown through Agent CMS"));
+        return after;
+    }
+
+    @DeleteMapping("/{id}/cooldowns/{key}")
+    Map<String, Object> resetCooldown(@PathVariable int id, @PathVariable String key,
+                                      @RequestParam(defaultValue = "Reset agent cooldown through Agent CMS") String reason,
+                                      Principal principal) {
+        agent(id);
+        if (COOLDOWN_POLICIES.stream().noneMatch(policy -> policy.key().equals(key))) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown agent cooldown");
+        }
+
+        Map<String, Object> before = new LinkedHashMap<>();
+        before.put("key", key);
+        before.put("agentValue", policyValue(id, key));
+        gameJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=? AND policy_key=?", id, key);
+        Map<String, Object> after = cooldowns(id).stream()
+                .filter(row -> key.equals(row.get("key")))
+                .findFirst()
+                .orElseThrow();
+        audit(principal, "AGENT_COOLDOWN_RESET", "agent:" + id + ":" + key, before, after, reason);
+        return after;
+    }
+
     @PostMapping("/{id}/runtime/{action}")
     Map<String, Object> runtimeAction(@PathVariable int id, @PathVariable String action, Principal principal) {
         if (!List.of("prepare", "enter", "tick", "release").contains(action)) {
@@ -576,6 +667,18 @@ public class AgentController {
         };
     }
 
+    private long parseNonNegativeLong(String value, long fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            long parsed = Long.parseLong(value.trim());
+            return parsed < 0 ? fallback : parsed;
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
     private void maybeUpsertCompanionRelationship(int agentProfileId, Map<String, Object> goal, Principal principal) {
         String goalType = String.valueOf(goal.getOrDefault("goal_type", "")).trim().toUpperCase();
         if (!List.of("FOLLOW", "FOLLOW_CHARACTER", "COMPANION", "HANG_AROUND").contains(goalType)) {
@@ -635,6 +738,10 @@ public class AgentController {
     record UpdatePolicy(Boolean enabled, String reason) {}
 
     record AgentCapabilityPolicy(String key, String label, String description, boolean defaultEnabled) {}
+
+    record UpdateCooldown(Long millis, String reason) {}
+
+    record AgentCooldownPolicy(String key, String label, String description, long defaultMillis) {}
 
     record SaveScript(String name, Integer version, Boolean enabled, String scriptType, String body, String reason) {}
 
