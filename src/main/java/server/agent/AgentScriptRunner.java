@@ -12,6 +12,7 @@ import java.util.Locale;
  * WAIT [seconds]
  * SAY [message]
  * ROAM [hint]
+ * FOLLOW [character name or id]
  * MOVE [destination]
  * MAP [mapId]
  * PORTAL [portalName]
@@ -55,6 +56,7 @@ public final class AgentScriptRunner {
             case "WAIT" -> AgentIntent.waitFor(secondsToMillis(argument, DEFAULT_IDLE_MILLIS));
             case "SAY" -> AgentIntent.say(argument);
             case "ROAM" -> AgentIntent.roam(argument);
+            case "FOLLOW", "FOLLOW_CHARACTER", "COMPANION" -> AgentIntent.followCharacter(argument);
             case "MOVE" -> AgentIntent.move(argument);
             case "MAP", "MOVEMAP", "MOVE_TO_MAP" -> AgentIntent.moveToMap(argument);
             case "PORTAL", "USEPORTAL", "USE_PORTAL" -> AgentIntent.usePortal(argument);

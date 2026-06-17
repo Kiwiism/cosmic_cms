@@ -173,7 +173,7 @@ public final class AgentRuntimeService {
     private String intentTargetType(AgentIntent intent) {
         return switch (intent.type()) {
             case SAY -> "CHAT";
-            case ROAM, MOVE, MOVE_TO_MAP, USE_PORTAL -> "NAVIGATION";
+            case ROAM, MOVE, MOVE_TO_MAP, FOLLOW_CHARACTER, USE_PORTAL -> "NAVIGATION";
             case ATTACK, GRIND -> "COMBAT";
             case LOOT, SHOP, TRADE -> "ECONOMY";
             case NPC -> "NPC";

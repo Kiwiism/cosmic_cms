@@ -4,6 +4,7 @@ import server.agent.AgentIntentCapability;
 import server.agent.AgentIntentType;
 import server.agent.AgentNavigationGraphService;
 import server.agent.AgentNavigationRoute;
+import server.agent.AgentPerceptionSnapshot;
 import server.agent.AgentPortalEdge;
 
 public final class AgentNavigationActionAdapter implements AgentActionAdapter {
@@ -23,6 +24,9 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         AgentIntentType type = context.intent().type();
         if (type == AgentIntentType.MOVE_TO_MAP) {
             return previewMoveToMap(context);
+        }
+        if (type == AgentIntentType.FOLLOW_CHARACTER) {
+            return previewFollowCharacter(context);
         }
         return AgentActionResult.blockedByRuntime(capability(),
                 type + " reached the navigation adapter, but movement execution is not implemented yet");
@@ -58,6 +62,51 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                         + next.portalName() + " -> map " + next.toMapId()
                         + ". Gameplay movement remains disabled until the movement adapter is implemented.",
                 routeDetailsJson(route));
+    }
+
+    private AgentActionResult previewFollowCharacter(AgentActionContext context) {
+        String target = context.intent().argument();
+        if (target == null || target.isBlank()) {
+            return AgentActionResult.blockedByRuntime(capability(), "FOLLOW_CHARACTER requires a character name or id");
+        }
+        if (context.perception() == null || !context.perception().available()) {
+            return AgentActionResult.blockedByRuntime(capability(), "Cannot preview follow behavior without an available perception snapshot");
+        }
+
+        AgentPerceptionSnapshot.AgentVisibleObject matched = context.perception().nearbyPlayers().stream()
+                .filter(player -> matchesCharacter(player, target))
+                .findFirst()
+                .orElse(null);
+        if (matched == null) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Follow target '" + target + "' is not visible on the current map. Future movement will need locate-and-route support.",
+                    followDetailsJson(context, target, null, "TARGET_NOT_VISIBLE")
+            );
+        }
+
+        return AgentActionResult.ok(
+                capability(),
+                "Follow target " + matched.name() + " is visible at distanceSq " + matched.distanceSq()
+                        + ". Gameplay movement remains disabled until the movement adapter is implemented.",
+                false,
+                followDetailsJson(context, target, matched, "TARGET_VISIBLE")
+        );
+    }
+
+    private boolean matchesCharacter(AgentPerceptionSnapshot.AgentVisibleObject player, String target) {
+        String trimmed = target.trim();
+        if (player.name() != null && player.name().equalsIgnoreCase(trimmed)) {
+            return true;
+        }
+        if (player.templateId() == null) {
+            return false;
+        }
+        try {
+            return player.templateId() == Integer.parseInt(trimmed);
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     private Integer parseMapId(String value) {
@@ -105,6 +154,39 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 + "\"open\":" + edge.open() + ","
                 + "\"scripted\":" + edge.scripted()
                 + "}";
+    }
+
+    private String followDetailsJson(
+            AgentActionContext context,
+            String requestedTarget,
+            AgentPerceptionSnapshot.AgentVisibleObject matched,
+            String state
+    ) {
+        return "{"
+                + "\"followState\":\"" + state + "\","
+                + "\"world\":" + context.perception().world() + ","
+                + "\"channel\":" + context.perception().channel() + ","
+                + "\"mapId\":" + context.perception().mapId() + ","
+                + "\"agentPosition\":{\"x\":" + context.perception().x() + ",\"y\":" + context.perception().y() + "},"
+                + "\"requestedTarget\":\"" + escapeJson(requestedTarget) + "\","
+                + "\"visiblePlayers\":" + context.perception().nearbyPlayers().size() + ","
+                + "\"target\":" + (matched == null ? "null" : visiblePlayerJson(matched))
+                + "}";
+    }
+
+    private String visiblePlayerJson(AgentPerceptionSnapshot.AgentVisibleObject player) {
+        return "{"
+                + "\"characterId\":" + player.templateId() + ","
+                + "\"objectId\":" + player.objectId() + ","
+                + "\"name\":\"" + escapeJson(player.name()) + "\","
+                + "\"level\":" + nullableNumber(player.level()) + ","
+                + "\"position\":{\"x\":" + player.x() + ",\"y\":" + player.y() + "},"
+                + "\"distanceSq\":" + player.distanceSq()
+                + "}";
+    }
+
+    private String nullableNumber(Integer value) {
+        return value == null ? "null" : value.toString();
     }
 
     private String escapeJson(String value) {

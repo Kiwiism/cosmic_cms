@@ -7,6 +7,7 @@ public enum AgentIntentType {
     ROAM,
     MOVE,
     MOVE_TO_MAP,
+    FOLLOW_CHARACTER,
     USE_PORTAL,
     ATTACK,
     GRIND,

@@ -33,7 +33,7 @@ public enum AgentIntentCapability {
         return switch (type) {
             case IDLE, WAIT -> SELF;
             case SAY -> CHAT;
-            case ROAM, MOVE, MOVE_TO_MAP, USE_PORTAL -> NAVIGATION;
+            case ROAM, MOVE, MOVE_TO_MAP, FOLLOW_CHARACTER, USE_PORTAL -> NAVIGATION;
             case ATTACK, GRIND -> COMBAT;
             case LOOT -> LOOT;
             case NPC -> NPC;

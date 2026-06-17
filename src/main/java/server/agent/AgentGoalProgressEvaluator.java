@@ -28,6 +28,8 @@ public final class AgentGoalProgressEvaluator {
         return switch (goalType) {
             case "IDLE", "WAIT" -> timingGoal(dispatchResult);
             case "MOVE", "MOVE_TO_MAP", "TRAVEL" -> mapGoal(goal, perception);
+            case "FOLLOW", "FOLLOW_CHARACTER", "COMPANION", "HANG_AROUND" ->
+                    AgentGoalProgressDecision.running("Follow goals stay active while the target remains the companion objective");
             case "GRIND", "GRIND_TO_LEVEL" -> levelGoal(goal, knowledge);
             default -> AgentGoalProgressDecision.running("Goal requires a future executor before completion can be proven");
         };

@@ -25,7 +25,7 @@ public class AgentController {
     private static final List<AgentCapabilityPolicy> CAPABILITY_POLICIES = List.of(
             new AgentCapabilityPolicy("intent.self.enabled", "Self timing", "Allows no-op IDLE and WAIT dry-run intents.", true),
             new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows future SAY/chat intents to pass the policy gate.", false),
-            new AgentCapabilityPolicy("intent.navigation.enabled", "Navigation", "Allows future ROAM, MOVE, MAP and PORTAL intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.navigation.enabled", "Navigation", "Allows ROAM, MOVE, MAP, FOLLOW and PORTAL intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows future ATTACK and GRIND intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows future LOOT intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows future NPC/TALK intents to pass the policy gate.", false),

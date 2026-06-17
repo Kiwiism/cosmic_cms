@@ -29,6 +29,10 @@ public record AgentIntent(
         return new AgentIntent(AgentIntentType.MOVE_TO_MAP, mapId, 0);
     }
 
+    public static AgentIntent followCharacter(String characterIdOrName) {
+        return new AgentIntent(AgentIntentType.FOLLOW_CHARACTER, blankToNull(characterIdOrName), 0);
+    }
+
     public static AgentIntent usePortal(String portalName) {
         return new AgentIntent(AgentIntentType.USE_PORTAL, blankToNull(portalName), 0);
     }

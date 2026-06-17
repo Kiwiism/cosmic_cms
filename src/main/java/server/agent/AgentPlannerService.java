@@ -38,6 +38,8 @@ public final class AgentPlannerService {
             case "WAIT" -> AgentIntent.waitFor(1000);
             case "CHAT", "SAY" -> AgentIntent.say(valueOr(goal.targetRef(), "Hello."));
             case "ROAM" -> AgentIntent.roam(valueOr(goal.targetRef(), "goal:" + goal.id()));
+            case "FOLLOW", "FOLLOW_CHARACTER", "COMPANION", "HANG_AROUND" ->
+                    AgentIntent.followCharacter(valueOr(goal.targetRef(), "nearest player"));
             case "MOVE", "MOVE_TO_MAP", "TRAVEL" -> goal.targetMap() == null
                     ? AgentIntent.roam(valueOr(goal.targetRef(), "find route"))
                     : AgentIntent.moveToMap(String.valueOf(goal.targetMap()));
