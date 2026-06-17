@@ -12,6 +12,11 @@ public final class AgentRuntimeService {
     private static final Logger log = LoggerFactory.getLogger(AgentRuntimeService.class);
     private static final Pattern LOCATED_TARGET_ID_PATTERN = Pattern.compile("\"locatedTarget\"\\s*:\\s*\\{[^}]*\"characterId\"\\s*:\\s*(\\d+)");
     private static final Pattern LOCATED_TARGET_NAME_PATTERN = Pattern.compile("\"locatedTarget\"\\s*:\\s*\\{[^}]*\"name\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern LOOT_STATE_PATTERN = Pattern.compile("\"lootState\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern LOOT_OBJECT_ID_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"objectId\"\\s*:\\s*(\\d+)");
+    private static final Pattern LOOT_ITEM_ID_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"itemId\"\\s*:\\s*(null|\\d+)");
+    private static final Pattern LOOT_QUANTITY_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"quantity\"\\s*:\\s*(null|-?\\d+)");
+    private static final Pattern LOOT_MESO_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"meso\"\\s*:\\s*(null|-?\\d+)");
 
     private final AgentRuntimeRepository repository;
     private final AgentControlGuard controlGuard;
@@ -156,6 +161,7 @@ public final class AgentRuntimeService {
         ));
         rememberNavigationRoute(managed, intent, dispatchResult, perception);
         rememberCompanionRelationship(managed, intent, dispatchResult, perception);
+        rememberLootEconomy(managed, intent, dispatchResult, perception);
     }
 
     public void failSession(AgentRuntimeSession session, String reason) {
@@ -405,6 +411,44 @@ public final class AgentRuntimeService {
         ));
     }
 
+    private void rememberLootEconomy(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult,
+            AgentPerceptionSnapshot perception
+    ) throws SQLException {
+        if (intent.type() != AgentIntentType.LOOT
+                || !dispatchResult.gameplayMutated()
+                || dispatchResult.detailsJson() == null
+                || !"PICKED_UP".equals(extractString(LOOT_STATE_PATTERN, dispatchResult.detailsJson()))) {
+            return;
+        }
+
+        Integer itemId = extractNullableInteger(LOOT_ITEM_ID_PATTERN, dispatchResult.detailsJson());
+        Integer quantity = extractNullableInteger(LOOT_QUANTITY_PATTERN, dispatchResult.detailsJson());
+        Integer meso = extractNullableInteger(LOOT_MESO_PATTERN, dispatchResult.detailsJson());
+        Integer objectId = extractNullableInteger(LOOT_OBJECT_ID_PATTERN, dispatchResult.detailsJson());
+        repository.recordEconomyLedger(
+                managed.profileId(),
+                managed.session().id(),
+                "LOOT_PICKUP",
+                itemId,
+                quantity == null ? 0 : quantity,
+                meso == null ? 0L : meso,
+                "MAP_DROP",
+                objectId == null ? null : objectId.longValue(),
+                null,
+                perception.world(),
+                perception.channel(),
+                perception.mapId(),
+                "{"
+                        + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                        + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                        + "\"lootDetails\":" + nullableJsonObject(dispatchResult.detailsJson())
+                        + "}"
+        );
+    }
+
     private Integer extractLocatedTargetId(String detailsJson) {
         Matcher matcher = LOCATED_TARGET_ID_PATTERN.matcher(detailsJson);
         if (!matcher.find()) {
@@ -420,6 +464,27 @@ public final class AgentRuntimeService {
     private String extractLocatedTargetName(String detailsJson) {
         Matcher matcher = LOCATED_TARGET_NAME_PATTERN.matcher(detailsJson);
         return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private String extractString(Pattern pattern, String detailsJson) {
+        Matcher matcher = pattern.matcher(detailsJson);
+        return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private Integer extractNullableInteger(Pattern pattern, String detailsJson) {
+        Matcher matcher = pattern.matcher(detailsJson);
+        if (!matcher.find()) {
+            return null;
+        }
+        String value = matcher.group(1);
+        if (value == null || "null".equals(value)) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private String perceptionDetailsJson(AgentPerceptionSnapshot perception) {

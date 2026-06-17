@@ -48,10 +48,12 @@ intent, and writes an `INTENT_PLAN` row to `agent_action_logs`. It then passes
 the intent through a policy-gated dispatcher that writes `INTENT_DISPATCH`.
 `IDLE` and `WAIT` are accepted as no-ops. Navigation can execute conservative
 open, non-scripted portal movement for `MOVE_TO_MAP`, `FOLLOW_CHARACTER`, and
-`PORTAL` intents when the route is available. The future-facing verbs `SAY`,
-`ROAM`, `ATTACK`, `GRIND`, `LOOT`, `NPC`, `SHOP`, `TRADE`, `PARTY`, `USEITEM`,
-and `EQUIP` are parsed and audited, but blocked until their dedicated systems
-are implemented.
+`PORTAL` intents when the route is available. `LOOT` can pick nearby visible
+drops through the normal server pickup path when policy allows it, and
+successful pickups are written to `agent_economy_ledger`. The future-facing
+verbs `SAY`, `ROAM`, `ATTACK`, `GRIND`, `NPC`, `SHOP`, `TRADE`, `PARTY`,
+`USEITEM`, and `EQUIP` are parsed and audited, but blocked until their dedicated
+systems are implemented.
 
 When `USE_AGENT_RUNTIME` is enabled, the runtime starts a maintenance scheduler
 that ticks already-entered agent characters every 5 seconds. The

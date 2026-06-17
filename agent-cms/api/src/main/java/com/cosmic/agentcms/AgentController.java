@@ -27,7 +27,7 @@ public class AgentController {
             new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows future SAY/chat intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.navigation.enabled", "Navigation", "Allows ROAM, MOVE, MAP, FOLLOW and PORTAL intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows future ATTACK and GRIND intents to pass the policy gate.", false),
-            new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows future LOOT intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows nearby visible drop pickup through normal server pickup rules.", false),
             new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows future NPC/TALK intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows future SHOP/MERCHANT intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.trade.enabled", "Trade", "Allows future TRADE intents to pass the policy gate.", false),

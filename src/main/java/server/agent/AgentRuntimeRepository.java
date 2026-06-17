@@ -180,6 +180,45 @@ public final class AgentRuntimeRepository {
         }
     }
 
+    public void recordEconomyLedger(
+            int agentProfileId,
+            long runtimeSessionId,
+            String entryType,
+            Integer itemId,
+            int quantity,
+            long mesoDelta,
+            String sourceType,
+            Long sourceId,
+            Integer counterpartyCharacterId,
+            Integer world,
+            Integer channel,
+            Integer mapId,
+            String detailsJson
+    ) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     INSERT INTO agent_economy_ledger
+                     (agent_profile_id, runtime_session_id, entry_type, item_id, quantity, meso_delta,
+                      source_type, source_id, counterparty_character_id, world, channel, map_id, details_json)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     """)) {
+            statement.setInt(1, agentProfileId);
+            statement.setLong(2, runtimeSessionId);
+            statement.setString(3, entryType);
+            setNullableInt(statement, 4, itemId);
+            statement.setInt(5, quantity);
+            statement.setLong(6, mesoDelta);
+            statement.setString(7, sourceType);
+            setNullableLong(statement, 8, sourceId);
+            setNullableInt(statement, 9, counterpartyCharacterId);
+            setNullableInt(statement, 10, world);
+            setNullableInt(statement, 11, channel);
+            setNullableInt(statement, 12, mapId);
+            statement.setString(13, detailsJson);
+            statement.executeUpdate();
+        }
+    }
+
     private AgentRuntimeSession readSession(ResultSet result) throws SQLException {
         return new AgentRuntimeSession(
                 result.getLong("id"),
