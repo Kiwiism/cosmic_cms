@@ -19,6 +19,7 @@ public final class AgentPilotService {
     private final AgentRuntimeService runtimeService;
     private final AgentIntentDispatcher intentDispatcher;
     private final AgentGoalRepository goalRepository;
+    private final AgentGoalProgressEvaluator goalProgressEvaluator;
 
     public AgentPilotService(
             AgentPerceptionService perceptionService,
@@ -26,7 +27,8 @@ public final class AgentPilotService {
             AgentPlannerService plannerService,
             AgentRuntimeService runtimeService,
             AgentIntentDispatcher intentDispatcher,
-            AgentGoalRepository goalRepository
+            AgentGoalRepository goalRepository,
+            AgentGoalProgressEvaluator goalProgressEvaluator
     ) {
         this.perceptionService = perceptionService;
         this.knowledgeService = knowledgeService;
@@ -34,6 +36,7 @@ public final class AgentPilotService {
         this.runtimeService = runtimeService;
         this.intentDispatcher = intentDispatcher;
         this.goalRepository = goalRepository;
+        this.goalProgressEvaluator = goalProgressEvaluator;
     }
 
     public AgentPilotTickResult dryRunTick(AgentManagedCharacter managed) throws SQLException {
@@ -50,7 +53,8 @@ public final class AgentPilotService {
         runtimeService.logPlannedIntent(managed, intent, perception, knowledge, plan, message);
         AgentIntentDispatchResult dispatchResult = intentDispatcher.dispatch(managed, intent, perception, plan.source());
         if (plan.hasGoal()) {
-            goalRepository.recordPlanningTick(plan.goal(), intent, dispatchResult, perception, plan.reason());
+            AgentGoalProgressDecision progressDecision = goalProgressEvaluator.evaluate(plan, dispatchResult, perception, knowledge);
+            goalRepository.recordPlanningTick(plan.goal(), intent, dispatchResult, perception, knowledge, progressDecision, plan.reason());
         }
         runtimeService.rememberPilotTick(managed, intent, dispatchResult, perception, knowledge, plan);
         runtimeService.heartbeat(managed.session(), message);

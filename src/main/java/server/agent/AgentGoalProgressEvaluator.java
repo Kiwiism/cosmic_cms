@@ -1,0 +1,84 @@
+package server.agent;
+
+import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+/**
+ * Conservative dry-run goal completion checks.
+ *
+ * This does not perform gameplay actions. It only marks goals complete when
+ * the current snapshot already proves the target has been reached.
+ */
+public final class AgentGoalProgressEvaluator {
+    private static final Pattern TARGET_LEVEL_PATTERN = Pattern.compile("\"targetLevel\"\\s*:\\s*(\\d+)");
+
+    public AgentGoalProgressDecision evaluate(
+            AgentPlan plan,
+            AgentIntentDispatchResult dispatchResult,
+            AgentPerceptionSnapshot perception,
+            AgentKnowledgeSnapshot knowledge
+    ) {
+        AgentGoal goal = plan.goal();
+        if (goal == null) {
+            return AgentGoalProgressDecision.running("No goal selected");
+        }
+
+        String goalType = goal.goalType() == null ? "" : goal.goalType().trim().toUpperCase(Locale.ROOT);
+        return switch (goalType) {
+            case "IDLE", "WAIT" -> timingGoal(dispatchResult);
+            case "MOVE", "MOVE_TO_MAP", "TRAVEL" -> mapGoal(goal, perception);
+            case "GRIND", "GRIND_TO_LEVEL" -> levelGoal(goal, knowledge);
+            default -> AgentGoalProgressDecision.running("Goal requires a future executor before completion can be proven");
+        };
+    }
+
+    private AgentGoalProgressDecision timingGoal(AgentIntentDispatchResult dispatchResult) {
+        if (dispatchResult.status() == AgentActionStatus.OK) {
+            return AgentGoalProgressDecision.completed("No-op timing goal was accepted by the dry-run dispatcher");
+        }
+        return AgentGoalProgressDecision.running("Timing goal is still waiting for an accepted dispatch");
+    }
+
+    private AgentGoalProgressDecision mapGoal(AgentGoal goal, AgentPerceptionSnapshot perception) {
+        if (goal.targetMap() != null && perception.mapId() == goal.targetMap()) {
+            return AgentGoalProgressDecision.completed("Character is already on the target map");
+        }
+        return AgentGoalProgressDecision.running("Character is not on the target map yet");
+    }
+
+    private AgentGoalProgressDecision levelGoal(AgentGoal goal, AgentKnowledgeSnapshot knowledge) {
+        Integer targetLevel = targetLevel(goal);
+        if (targetLevel != null && knowledge.level() >= targetLevel) {
+            return AgentGoalProgressDecision.completed("Character already reached target level " + targetLevel);
+        }
+        return AgentGoalProgressDecision.running(targetLevel == null
+                ? "No target level configured in target_ref or parameters_json"
+                : "Character level " + knowledge.level() + " is below target level " + targetLevel);
+    }
+
+    private Integer targetLevel(AgentGoal goal) {
+        Integer fromRef = parsePositiveInt(goal.targetRef());
+        if (fromRef != null) {
+            return fromRef;
+        }
+
+        if (goal.parametersJson() == null) {
+            return null;
+        }
+        Matcher matcher = TARGET_LEVEL_PATTERN.matcher(goal.parametersJson());
+        return matcher.find() ? parsePositiveInt(matcher.group(1)) : null;
+    }
+
+    private Integer parsePositiveInt(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            int parsed = Integer.parseInt(value.trim());
+            return parsed > 0 ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+}

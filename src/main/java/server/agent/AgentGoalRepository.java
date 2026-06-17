@@ -16,10 +16,12 @@ public final class AgentGoalRepository {
             AgentIntent intent,
             AgentIntentDispatchResult dispatchResult,
             AgentPerceptionSnapshot perception,
+            AgentKnowledgeSnapshot knowledge,
+            AgentGoalProgressDecision progressDecision,
             String plannerReason
     ) throws SQLException {
         String progressJson = """
-                {"lastIntent":"%s","lastArgument":%s,"dispatchStatus":"%s","dispatchMessage":%s,"policyAllowed":%s,"capability":"%s","world":%d,"channel":%d,"mapId":%d,"x":%d,"y":%d,"players":%d,"monsters":%d,"drops":%d,"npcs":%d,"reactors":%d,"plannerReason":%s}
+                {"lastIntent":"%s","lastArgument":%s,"dispatchStatus":"%s","dispatchMessage":%s,"policyAllowed":%s,"capability":"%s","goalStatus":"%s","goalTerminal":%s,"goalReason":%s,"level":%d,"job":%d,"world":%d,"channel":%d,"mapId":%d,"x":%d,"y":%d,"players":%d,"monsters":%d,"drops":%d,"npcs":%d,"reactors":%d,"plannerReason":%s}
                 """.formatted(
                 escapeJson(intent.type().name()),
                 nullableString(intent.argument()),
@@ -27,6 +29,11 @@ public final class AgentGoalRepository {
                 nullableString(dispatchResult.message()),
                 dispatchResult.policyAllowed(),
                 escapeJson(dispatchResult.capability().name()),
+                escapeJson(progressDecision.nextStatus()),
+                progressDecision.terminal(),
+                nullableString(progressDecision.reason()),
+                knowledge.level(),
+                knowledge.jobId(),
                 perception.world(),
                 perception.channel(),
                 perception.mapId(),
@@ -43,17 +50,28 @@ public final class AgentGoalRepository {
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      UPDATE agent_goals
-                     SET status = CASE WHEN status IN ('PENDING', 'ACTIVE') THEN 'RUNNING' ELSE status END,
+                     SET status = CASE
+                             WHEN ? IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN ?
+                             WHEN status IN ('PENDING', 'ACTIVE') THEN 'RUNNING'
+                             ELSE status
+                         END,
                          started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+                         completed_at = CASE
+                             WHEN ? IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN COALESCE(completed_at, CURRENT_TIMESTAMP)
+                             ELSE completed_at
+                         END,
                          progress_json = ?,
                          updated_at = CURRENT_TIMESTAMP
                      WHERE id = ?
                        AND agent_profile_id = ?
                        AND status IN ('PENDING', 'ACTIVE', 'RUNNING')
                      """)) {
-            statement.setString(1, progressJson);
-            statement.setLong(2, goal.id());
-            statement.setInt(3, goal.agentProfileId());
+            statement.setString(1, progressDecision.nextStatus());
+            statement.setString(2, progressDecision.nextStatus());
+            statement.setString(3, progressDecision.nextStatus());
+            statement.setString(4, progressJson);
+            statement.setLong(5, goal.id());
+            statement.setInt(6, goal.agentProfileId());
             statement.executeUpdate();
         }
     }
