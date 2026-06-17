@@ -75,6 +75,17 @@ capability, duration, and warnings for unknown or future-gated actions. It does
 not execute scripts and does not replace the server-side parser; it exists so
 staff can catch obvious mistakes before saving or assigning scripts.
 
+Agent scripts also support lightweight control syntax for simple behavior
+loops:
+
+- `REPEAT 3 WAIT 1` expands into three one-second wait intents.
+- `2x SAY hello` is shorthand for repeating one command twice.
+- Inline comments can be added after a command with ` # comment`.
+
+Repeats are capped at 50 expanded steps per line to protect the runtime from
+accidental oversized scripts. The Agent CMS preview expands repeated commands
+the same way as the server parser so staff can see the exact fallback sequence.
+
 Intent dispatch also passes through a runtime cooldown gate after capability
 policy succeeds. Cooldowns can be configured globally or per-agent through
 `agent_policies` using `cooldown.<capability>.millis` or

@@ -25,9 +25,15 @@ import java.util.Locale;
  * PARTY [command]
  * USEITEM [itemIdOrName]
  * EQUIP [itemIdOrName]
+ *
+ * Convenience syntax:
+ * REPEAT 3 SAY hello
+ * 3x WAIT 1
+ * Inline comments are allowed after commands with " #".
  */
 public final class AgentScriptRunner {
     private static final long DEFAULT_IDLE_MILLIS = 30_000L;
+    private static final int MAX_REPEAT = 50;
 
     public List<AgentIntent> parse(String scriptBody) {
         if (scriptBody == null || scriptBody.isBlank()) {
@@ -36,18 +42,55 @@ public final class AgentScriptRunner {
 
         List<AgentIntent> intents = new ArrayList<>();
         for (String rawLine : scriptBody.split("\\R")) {
-            String line = rawLine.strip();
+            String line = stripInlineComment(rawLine).strip();
             if (line.isEmpty() || line.startsWith("#")) {
                 continue;
             }
 
-            String[] parts = line.split("\\s+", 2);
+            ExpandedLine expandedLine = expandRepeat(line);
+            String[] parts = expandedLine.commandLine().split("\\s+", 2);
             String command = parts[0].toUpperCase(Locale.ROOT);
             String argument = parts.length > 1 ? parts[1].strip() : "";
-            intents.add(parseLine(command, argument, line));
+            AgentIntent intent = parseLine(command, argument, expandedLine.commandLine());
+            for (int repeat = 0; repeat < expandedLine.repeatCount(); repeat++) {
+                intents.add(intent);
+            }
         }
 
         return intents.isEmpty() ? List.of(AgentIntent.idle(DEFAULT_IDLE_MILLIS)) : List.copyOf(intents);
+    }
+
+    private String stripInlineComment(String line) {
+        int marker = line.indexOf(" #");
+        return marker < 0 ? line : line.substring(0, marker);
+    }
+
+    private ExpandedLine expandRepeat(String line) {
+        String[] parts = line.split("\\s+", 3);
+        if (parts.length >= 3 && "REPEAT".equalsIgnoreCase(parts[0])) {
+            Integer repeat = repeatCount(parts[1]);
+            if (repeat != null) {
+                return new ExpandedLine(parts[2].strip(), repeat);
+            }
+        }
+
+        if (parts.length >= 2 && parts[0].toLowerCase(Locale.ROOT).endsWith("x")) {
+            Integer repeat = repeatCount(parts[0].substring(0, parts[0].length() - 1));
+            if (repeat != null) {
+                return new ExpandedLine((parts.length == 2 ? parts[1] : parts[1] + " " + parts[2]).strip(), repeat);
+            }
+        }
+
+        return new ExpandedLine(line, 1);
+    }
+
+    private Integer repeatCount(String value) {
+        try {
+            int repeat = Integer.parseInt(value.trim());
+            return repeat < 1 ? null : Math.min(repeat, MAX_REPEAT);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private AgentIntent parseLine(String command, String argument, String originalLine) {
@@ -82,5 +125,8 @@ public final class AgentScriptRunner {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    private record ExpandedLine(String commandLine, int repeatCount) {
     }
 }

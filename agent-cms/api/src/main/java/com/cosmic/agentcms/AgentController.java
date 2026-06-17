@@ -19,6 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/agents")
 public class AgentController {
+    private static final int MAX_SCRIPT_REPEAT = 50;
     private final JdbcTemplate cmsJdbc;
     private final JdbcTemplate gameJdbc;
     private final ObjectMapper mapper;
@@ -293,11 +294,17 @@ public class AgentController {
         int lineNumber = 0;
         for (String rawLine : valueOr(body.body(), "").split("\\R", -1)) {
             lineNumber++;
-            String line = rawLine.strip();
+            String line = stripInlineComment(rawLine).strip();
             if (line.isEmpty() || line.startsWith("#")) {
                 continue;
             }
-            steps.add(previewScriptLine(lineNumber, line));
+            ExpandedScriptLine expandedLine = expandScriptRepeat(line);
+            for (int repeat = 1; repeat <= expandedLine.repeatCount(); repeat++) {
+                Map<String, Object> step = previewScriptLine(lineNumber, expandedLine.commandLine());
+                step.put("repeatIndex", repeat);
+                step.put("repeatCount", expandedLine.repeatCount());
+                steps.add(step);
+            }
         }
 
         if (steps.isEmpty()) {
@@ -968,6 +975,39 @@ public class AgentController {
         return row;
     }
 
+    private String stripInlineComment(String line) {
+        int marker = line.indexOf(" #");
+        return marker < 0 ? line : line.substring(0, marker);
+    }
+
+    private ExpandedScriptLine expandScriptRepeat(String line) {
+        String[] parts = line.split("\\s+", 3);
+        if (parts.length >= 3 && "REPEAT".equalsIgnoreCase(parts[0])) {
+            Integer repeat = scriptRepeatCount(parts[1]);
+            if (repeat != null) {
+                return new ExpandedScriptLine(parts[2].strip(), repeat);
+            }
+        }
+
+        if (parts.length >= 2 && parts[0].toLowerCase(Locale.ROOT).endsWith("x")) {
+            Integer repeat = scriptRepeatCount(parts[0].substring(0, parts[0].length() - 1));
+            if (repeat != null) {
+                return new ExpandedScriptLine((parts.length == 2 ? parts[1] : parts[1] + " " + parts[2]).strip(), repeat);
+            }
+        }
+
+        return new ExpandedScriptLine(line, 1);
+    }
+
+    private Integer scriptRepeatCount(String value) {
+        try {
+            int repeat = Integer.parseInt(value.trim());
+            return repeat < 1 ? null : Math.min(repeat, MAX_SCRIPT_REPEAT);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
     private long secondsToMillis(String value, long fallback) {
         if (value == null || value.isBlank()) {
             return fallback;
@@ -1081,6 +1121,8 @@ public class AgentController {
     record SaveScript(String name, Integer version, Boolean enabled, String scriptType, String body, String reason) {}
 
     record PreviewScript(String body) {}
+
+    record ExpandedScriptLine(String commandLine, int repeatCount) {}
 
     record CreateGoal(
             String goalType,
