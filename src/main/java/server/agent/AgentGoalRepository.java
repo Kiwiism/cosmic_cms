@@ -20,8 +20,9 @@ public final class AgentGoalRepository {
             AgentGoalProgressDecision progressDecision,
             String plannerReason
     ) throws SQLException {
+        AgentGoalDiagnosis diagnosis = diagnoseGoal(intent, dispatchResult, progressDecision);
         String progressJson = """
-                {"lastIntent":"%s","lastArgument":%s,"dispatchStatus":"%s","dispatchMessage":%s,"policyAllowed":%s,"capability":"%s","goalStatus":"%s","goalTerminal":%s,"goalReason":%s,"level":%d,"job":%d,"world":%d,"channel":%d,"mapId":%d,"x":%d,"y":%d,"players":%d,"monsters":%d,"drops":%d,"npcs":%d,"reactors":%d,"plannerReason":%s}
+                {"lastIntent":"%s","lastArgument":%s,"dispatchStatus":"%s","dispatchMessage":%s,"policyAllowed":%s,"capability":"%s","goalStatus":"%s","goalTerminal":%s,"goalReason":%s,"diagnosisState":"%s","diagnosisReason":%s,"recommendedAction":%s,"level":%d,"job":%d,"world":%d,"channel":%d,"mapId":%d,"x":%d,"y":%d,"players":%d,"monsters":%d,"drops":%d,"npcs":%d,"reactors":%d,"plannerReason":%s}
                 """.formatted(
                 escapeJson(intent.type().name()),
                 nullableString(intent.argument()),
@@ -32,6 +33,9 @@ public final class AgentGoalRepository {
                 escapeJson(progressDecision.nextStatus()),
                 progressDecision.terminal(),
                 nullableString(progressDecision.reason()),
+                escapeJson(diagnosis.state()),
+                nullableString(diagnosis.reason()),
+                nullableString(diagnosis.recommendedAction()),
                 knowledge.level(),
                 knowledge.jobId(),
                 perception.world(),
@@ -74,6 +78,79 @@ public final class AgentGoalRepository {
             statement.setInt(6, goal.agentProfileId());
             statement.executeUpdate();
         }
+    }
+
+    private AgentGoalDiagnosis diagnoseGoal(
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult,
+            AgentGoalProgressDecision progressDecision
+    ) {
+        if (progressDecision.terminal()) {
+            if ("COMPLETED".equals(progressDecision.nextStatus())) {
+                return new AgentGoalDiagnosis(
+                        "COMPLETED",
+                        progressDecision.reason(),
+                        "No action needed; the goal reached a terminal completed state."
+                );
+            }
+            return new AgentGoalDiagnosis(
+                    "FAILED",
+                    progressDecision.reason(),
+                    "Inspect the latest INTENT_DISPATCH log, adjust the goal, then reactivate or recreate it."
+            );
+        }
+
+        if (dispatchResult.status() == AgentActionStatus.FAILED) {
+            return new AgentGoalDiagnosis(
+                    "FAILED",
+                    dispatchResult.message(),
+                    "Runtime execution failed. Check server logs and the latest dispatch details before retrying."
+            );
+        }
+
+        if (dispatchResult.status() == AgentActionStatus.BLOCKED && !dispatchResult.policyAllowed()) {
+            return new AgentGoalDiagnosis(
+                    "BLOCKED_BY_POLICY",
+                    dispatchResult.message(),
+                    "Enable the " + dispatchResult.capability() + " capability policy for this agent if this behavior is intended."
+            );
+        }
+
+        if (dispatchResult.status() == AgentActionStatus.BLOCKED && isCooldownBlock(dispatchResult.detailsJson())) {
+            return new AgentGoalDiagnosis(
+                    "WAITING_FOR_COOLDOWN",
+                    dispatchResult.message(),
+                    "Wait for the cooldown to expire or lower the relevant cooldown in Agent CMS."
+            );
+        }
+
+        if (dispatchResult.status() == AgentActionStatus.BLOCKED) {
+            return new AgentGoalDiagnosis(
+                    "BLOCKED_BY_RUNTIME",
+                    dispatchResult.message(),
+                    "This intent passed policy but the runtime adapter could not execute it yet. Check whether this capability is implemented."
+            );
+        }
+
+        if (dispatchResult.status() == AgentActionStatus.DENIED) {
+            return new AgentGoalDiagnosis(
+                    "DENIED",
+                    dispatchResult.message(),
+                    "Review the runtime guard or action validation that denied this intent."
+            );
+        }
+
+        return new AgentGoalDiagnosis(
+                "RUNNING",
+                progressDecision.reason(),
+                intent.type() == AgentIntentType.UNKNOWN
+                        ? "Clarify or fix the script line so it maps to a supported intent."
+                        : "No immediate action needed; the goal remains active."
+        );
+    }
+
+    private boolean isCooldownBlock(String detailsJson) {
+        return detailsJson != null && detailsJson.contains("\"cooldownState\":\"BLOCKED\"");
     }
 
     public Optional<AgentGoal> findNextActiveGoal(int agentProfileId) throws SQLException {
@@ -140,4 +217,6 @@ public final class AgentGoalRepository {
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
     }
+
+    private record AgentGoalDiagnosis(String state, String reason, String recommendedAction) {}
 }

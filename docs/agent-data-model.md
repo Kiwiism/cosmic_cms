@@ -34,6 +34,13 @@ Stores long-lived goals and side goals.
 - supports map/world/channel targets
 - keeps JSON text fields for goal parameters and progress
 
+Runtime ticks update `progress_json` with the latest intent, dispatch status,
+perception counts, goal reason, and a compact diagnosis. The diagnosis includes
+`diagnosisState`, `diagnosisReason`, and `recommendedAction` so Agent CMS can
+show why a goal is running, blocked by policy, waiting for cooldown, blocked by
+an unimplemented runtime adapter, completed, or failed without requiring a
+schema migration for each new diagnostic field.
+
 ### `agent_scripts`
 
 Stores server-side scripts that Agent CMS can manage later.
