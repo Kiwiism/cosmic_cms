@@ -541,6 +541,14 @@ public class ItemInformationProvider {
         return ret;
     }
 
+    public short getDefaultEquipSlot(int itemId) {
+        String islot = getEquipmentSlot(itemId);
+        if (islot == null || islot.isBlank()) {
+            return 0;
+        }
+        return EquipSlot.getFromTextSlot(islot).firstAllowedSlot(isCash(itemId));
+    }
+
     public Map<String, Integer> getEquipStats(int itemId) {
         if (equipStatsCache.containsKey(itemId)) {
             return equipStatsCache.get(itemId);

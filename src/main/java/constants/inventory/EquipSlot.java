@@ -58,6 +58,13 @@ public enum EquipSlot {
         return cash && slot < 0;
     }
 
+    public short firstAllowedSlot(boolean cash) {
+        if (allowed == null || allowed.length == 0) {
+            return 0;
+        }
+        return (short) (cash ? allowed[0] - 100 : allowed[0]);
+    }
+
     public static EquipSlot getFromTextSlot(String slot) {
         if (!slot.isEmpty()) {
             for (EquipSlot c : values()) {

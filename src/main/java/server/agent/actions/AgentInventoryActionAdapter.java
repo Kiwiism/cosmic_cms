@@ -1,6 +1,7 @@
 package server.agent.actions;
 
 import client.Character;
+import client.inventory.Equip;
 import client.inventory.Inventory;
 import client.inventory.InventoryType;
 import client.inventory.Item;
@@ -55,6 +56,9 @@ public final class AgentInventoryActionAdapter implements AgentActionAdapter {
         if (type == AgentIntentType.USE_ITEM && isRecoveryAlias(context.intent().argument())) {
             return useRecoveryItem(context, item);
         }
+        if (type == AgentIntentType.EQUIP) {
+            return equipItem(context, item);
+        }
 
         String state = type == AgentIntentType.EQUIP ? "EQUIP_READY" : "ITEM_READY";
         String itemName = itemName(item.getItemId());
@@ -64,6 +68,47 @@ public final class AgentInventoryActionAdapter implements AgentActionAdapter {
                         + " in " + inventoryType + " slot " + item.getPosition(),
                 false,
                 inventoryDetailsJson(context, inventoryType, item, state, "Readiness only; item use/equip is intentionally not executed yet")
+        );
+    }
+
+    private AgentActionResult equipItem(AgentActionContext context, Item item) {
+        if (!(item instanceof Equip equip)) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Selected item " + item.getItemId() + " is not an equip instance",
+                    inventoryDetailsJson(context, InventoryType.EQUIP, item, "NO_EQUIP", "Matched item is not equippable")
+            );
+        }
+
+        Character character = context.managed().character();
+        short sourceSlot = item.getPosition();
+        short destinationSlot = ItemInformationProvider.getInstance().getDefaultEquipSlot(item.getItemId());
+        if (destinationSlot >= 0) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "No default equipment slot could be resolved for " + item.getItemId(),
+                    inventoryDetailsJson(context, InventoryType.EQUIP, item, "EQUIP_REJECTED", "WZ equipment slot metadata is missing")
+            );
+        }
+
+        int itemId = item.getItemId();
+        InventoryManipulator.equip(character.getClient(), sourceSlot, destinationSlot);
+        Item equipped = character.getInventory(InventoryType.EQUIPPED).getItem(destinationSlot);
+        boolean applied = equipped != null && equipped.getItemId() == itemId;
+        String details = equipDetailsJson(context, equip, sourceSlot, destinationSlot, applied);
+        if (!applied) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Equipment " + itemLabel(itemId) + " was rejected by normal equip validation",
+                    details
+            );
+        }
+
+        return AgentActionResult.ok(
+                capability(),
+                "Equipped " + itemLabel(itemId) + " from slot " + sourceSlot + " to " + destinationSlot,
+                true,
+                details
         );
     }
 
@@ -218,6 +263,30 @@ public final class AgentInventoryActionAdapter implements AgentActionAdapter {
                 + "}";
     }
 
+    private String equipDetailsJson(
+            AgentActionContext context,
+            Equip item,
+            short sourceSlot,
+            short destinationSlot,
+            boolean applied
+    ) {
+        return "{"
+                + "\"inventoryState\":\"" + (applied ? "EQUIP_APPLIED" : "EQUIP_REJECTED") + "\","
+                + "\"intent\":\"" + context.intent().type().name() + "\","
+                + "\"argument\":\"" + escapeJson(context.intent().argument()) + "\","
+                + "\"world\":" + world(context) + ","
+                + "\"channel\":" + channel(context) + ","
+                + "\"mapId\":" + mapId(context) + ","
+                + "\"inventoryType\":\"EQUIP\","
+                + "\"matchedItem\":" + itemJson(item) + ","
+                + "\"sourceSlot\":" + sourceSlot + ","
+                + "\"destinationSlot\":" + destinationSlot + ","
+                + "\"mutationEnabled\":true,"
+                + "\"applied\":" + applied + ","
+                + "\"note\":\"Equip attempted through normal InventoryManipulator.equip validation\""
+                + "}";
+    }
+
     private int world(AgentActionContext context) {
         return context.perception() == null ? context.managed().client().getWorld() : context.perception().world();
     }
@@ -252,6 +321,11 @@ public final class AgentInventoryActionAdapter implements AgentActionAdapter {
 
     private String itemName(int itemId) {
         return ItemInformationProvider.getInstance().getName(itemId);
+    }
+
+    private String itemLabel(int itemId) {
+        String name = itemName(itemId);
+        return (name == null || name.isBlank()) ? String.valueOf(itemId) : name + " (" + itemId + ")";
     }
 
     private String escapeJson(String value) {

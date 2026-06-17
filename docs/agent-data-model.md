@@ -106,8 +106,10 @@ server shop path, record `RECOVERY_BOUGHT`, and write the purchase to
 buy/sell policies are added.
 `USEITEM` and `EQUIP` can inspect the agent's current inventory, resolve an item by id/name or simple
 aliases such as `hp`, `mp`, and `potion`, then record `ITEM_READY`,
-`EQUIP_READY`, `NO_ITEM`, or `NO_EQUIP`; they do not consume items or equip gear
-yet. `SKILL` and `CAST` can inspect learned skills, resolve a skill by id or
+`EQUIP_READY`, `NO_ITEM`, or `NO_EQUIP`; explicit recovery aliases consume safe
+HP/MP recovery items, and `EQUIP` attempts to equip matched gear through the
+normal WZ slot lookup and `InventoryManipulator.equip` validation, recording
+`EQUIP_APPLIED` or `EQUIP_REJECTED`. `SKILL` and `CAST` can inspect learned skills, resolve a skill by id or
 generic aliases such as `attack`, `buff`, `active`, and `passive`, then record
 `SKILL_READY` or `NO_SKILL`; direct skill intents can apply safe self-buffs with
 statups when the skill has no cooldown, no HP cost, no attack target, and enough
