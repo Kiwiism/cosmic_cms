@@ -113,7 +113,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         return AgentActionResult.ok(
                 capability(),
                 "Follow target " + matched.name() + " is visible at distanceSq " + matched.distanceSq()
-                        + ". Gameplay movement remains disabled until the movement adapter is implemented.",
+                        + ". Fine-grained in-map approach movement is not implemented yet.",
                 false,
                 followDetailsJson(context, target, matched, located.orElse(null), null, "TARGET_VISIBLE", proposedApproachAction(context, matched))
         );
@@ -266,8 +266,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         AgentPortalEdge next = route.steps().get(0);
         return "Follow target '" + target + "' located at map " + located.mapId()
                 + ". Route preview has " + route.steps().size() + " loaded step(s); next "
-                + next.portalName() + " -> map " + next.toMapId()
-                + ". Gameplay movement remains disabled until the movement adapter is implemented.";
+                + next.portalName() + " -> map " + next.toMapId() + ".";
     }
 
     private boolean matchesCharacter(AgentPerceptionSnapshot.AgentVisibleObject player, String target) {
@@ -362,7 +361,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
     }
 
     private String proposedPortalAction(AgentPortalEdge next) {
-        return proposedPortalAction(next, false, "Movement execution is disabled; this is a dry-run proposal only");
+        return proposedPortalAction(next, false, "Movement execution is disabled for this proposed action");
     }
 
     private String proposedPortalAction(AgentPortalEdge next, boolean executable, String reason) {
@@ -450,7 +449,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         return "{"
                 + "\"type\":\"APPROACH_TARGET\","
                 + "\"executable\":false,"
-                + "\"reason\":\"Movement execution is disabled; this is a dry-run proposal only\","
+                + "\"reason\":\"Fine-grained in-map approach movement is not implemented yet\","
                 + "\"targetCharacterId\":" + matched.templateId() + ","
                 + "\"targetName\":\"" + escapeJson(matched.name()) + "\","
                 + "\"delta\":{\"x\":" + dx + ",\"y\":" + dy + "},"

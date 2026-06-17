@@ -43,17 +43,18 @@ Stores server-side scripts that Agent CMS can manage later.
 - the dormant pilot tick service only reads enabled scripts by `agent_profiles.script_name`
 - `script_name = inline:<script line>` is supported for development previews without creating a script row
 
-The current pilot layer is a dry run. It parses a script, captures map counts,
-chooses the next intent, and writes an `INTENT_PLAN` row to
-`agent_action_logs`. It then passes the intent through a policy-gated dispatcher
-that writes `INTENT_DISPATCH`. `IDLE` and `WAIT` are accepted as no-ops. The
-future-facing verbs `SAY`, `ROAM`, `MOVE`, `MAP`, `PORTAL`, `ATTACK`, `GRIND`,
-`LOOT`, `NPC`, `SHOP`, `TRADE`, `PARTY`, `USEITEM`, and `EQUIP` are parsed and
-audited, but blocked until their dedicated systems are implemented. It does not
-move, chat, attack, loot, trade, or call gameplay handlers yet.
+The current pilot layer parses a script, captures map counts, chooses the next
+intent, and writes an `INTENT_PLAN` row to `agent_action_logs`. It then passes
+the intent through a policy-gated dispatcher that writes `INTENT_DISPATCH`.
+`IDLE` and `WAIT` are accepted as no-ops. Navigation can execute conservative
+open, non-scripted portal movement for `MOVE_TO_MAP`, `FOLLOW_CHARACTER`, and
+`PORTAL` intents when the route is available. The future-facing verbs `SAY`,
+`ROAM`, `ATTACK`, `GRIND`, `LOOT`, `NPC`, `SHOP`, `TRADE`, `PARTY`, `USEITEM`,
+and `EQUIP` are parsed and audited, but blocked until their dedicated systems
+are implemented.
 
 When `USE_AGENT_RUNTIME` is enabled, the runtime starts a maintenance scheduler
-that dry-run ticks already-entered agent characters every 5 seconds. The
+that ticks already-entered agent characters every 5 seconds. The
 scheduler does not create sessions, enter characters, or spawn agents by itself;
 it only processes handles explicitly entered through `AgentSpawnCoordinator`.
 

@@ -9,9 +9,9 @@ import server.runtime.RuntimeModuleContext;
 /**
  * Dormant module boundary for future server-side agents.
  *
- * This module only loads enabled agent profiles into an in-memory registry.
- * It does not log characters in, spawn actors, move, chat, fight, trade, or
- * mutate gameplay state.
+ * This module loads enabled agent profiles into an in-memory registry and
+ * owns the explicit runtime boundary for entered agent characters. Implemented
+ * adapters may mutate gameplay state only after policy checks.
  */
 public final class AgentRuntimeModule implements RuntimeModule {
     private static final Logger log = LoggerFactory.getLogger(AgentRuntimeModule.class);

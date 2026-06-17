@@ -97,7 +97,7 @@ Stop it with:
 .\agent-cms\stop-agent-cms.ps1
 ```
 
-Agent CMS owns only its login/audit database. Agent profiles, goals, scripts, policies, memory, action logs, and runtime sessions are stored in the main `cosmic` game database because the Cosmic server reads them directly. Agent CMS can edit those records without the live bridge. Live runtime actions such as prepare, enter, dry-run tick, and release require the optional private bridge.
+Agent CMS owns only its login/audit database. Agent profiles, goals, scripts, policies, memory, action logs, and runtime sessions are stored in the main `cosmic` game database because the Cosmic server reads them directly. Agent CMS can edit those records without the live bridge. Live runtime actions such as prepare, enter, runtime tick, and release require the optional private bridge.
 
 ### Live bridge
 

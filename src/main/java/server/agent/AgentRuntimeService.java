@@ -384,7 +384,7 @@ public final class AgentRuntimeService {
                 managed.profileId(),
                 relatedCharacterId,
                 dispatchResult.status() == AgentActionStatus.OK ? 10 : 5,
-                "Follow dry-run target " + (targetName == null ? relatedCharacterId : targetName)
+                "Follow runtime target " + (targetName == null ? relatedCharacterId : targetName)
                         + " at map " + perception.mapId()
         );
         repository.remember(new AgentMemoryEvent(
@@ -395,7 +395,7 @@ public final class AgentRuntimeService {
                 null,
                 perception.mapId(),
                 "Companion target " + (targetName == null ? relatedCharacterId : targetName)
-                        + " located during follow dry-run",
+                        + " located during follow runtime tick",
                 "{"
                         + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
                         + "\"argument\":\"" + escapeJson(intent.argument()) + "\","

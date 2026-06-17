@@ -39,7 +39,7 @@ public final class AgentPilotService {
         this.goalProgressEvaluator = goalProgressEvaluator;
     }
 
-    public AgentPilotTickResult dryRunTick(AgentManagedCharacter managed) throws SQLException {
+    public AgentPilotTickResult tick(AgentManagedCharacter managed) throws SQLException {
         if (!managed.enteredWorld()) {
             throw new IllegalStateException("Agent must enter the world before pilot ticks can run");
         }
@@ -52,22 +52,30 @@ public final class AgentPilotService {
         String message = "Planned " + intent.type() + " intent from " + plan.source() + ": " + plan.reason();
         runtimeService.logPlannedIntent(managed, intent, perception, knowledge, plan, message);
         AgentIntentDispatchResult dispatchResult = intentDispatcher.dispatch(managed, intent, perception, plan.source());
+        AgentPerceptionSnapshot resultPerception = dispatchResult.gameplayMutated()
+                ? perceptionService.snapshot(managed)
+                : perception;
         if (plan.hasGoal()) {
-            AgentGoalProgressDecision progressDecision = goalProgressEvaluator.evaluate(plan, dispatchResult, perception, knowledge);
-            goalRepository.recordPlanningTick(plan.goal(), intent, dispatchResult, perception, knowledge, progressDecision, plan.reason());
+            AgentGoalProgressDecision progressDecision = goalProgressEvaluator.evaluate(plan, dispatchResult, resultPerception, knowledge);
+            goalRepository.recordPlanningTick(plan.goal(), intent, dispatchResult, resultPerception, knowledge, progressDecision, plan.reason());
         }
-        runtimeService.rememberPilotTick(managed, intent, dispatchResult, perception, knowledge, plan);
-        runtimeService.heartbeat(managed.session(), message);
+        runtimeService.rememberPilotTick(managed, intent, dispatchResult, resultPerception, knowledge, plan);
+        runtimeService.heartbeat(managed.session(), message + " | map " + resultPerception.mapId());
 
         return new AgentPilotTickResult(
                 managed.profileId(),
                 managed.session().id(),
                 intent,
                 dispatchResult,
-                perception,
+                resultPerception,
                 plan.source(),
                 message,
                 Instant.now()
         );
+    }
+
+    @Deprecated
+    public AgentPilotTickResult dryRunTick(AgentManagedCharacter managed) throws SQLException {
+        return tick(managed);
     }
 }

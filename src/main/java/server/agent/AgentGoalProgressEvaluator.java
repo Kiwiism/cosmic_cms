@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Conservative dry-run goal completion checks.
+ * Conservative goal completion checks.
  *
  * This does not perform gameplay actions. It only marks goals complete when
  * the current snapshot already proves the target has been reached.
@@ -37,7 +37,7 @@ public final class AgentGoalProgressEvaluator {
 
     private AgentGoalProgressDecision timingGoal(AgentIntentDispatchResult dispatchResult) {
         if (dispatchResult.status() == AgentActionStatus.OK) {
-            return AgentGoalProgressDecision.completed("No-op timing goal was accepted by the dry-run dispatcher");
+            return AgentGoalProgressDecision.completed("No-op timing goal was accepted by the runtime dispatcher");
         }
         return AgentGoalProgressDecision.running("Timing goal is still waiting for an accepted dispatch");
     }

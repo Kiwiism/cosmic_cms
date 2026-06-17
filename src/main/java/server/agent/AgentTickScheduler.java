@@ -58,11 +58,11 @@ public final class AgentTickScheduler {
             List<AgentManagedCharacter> agents = spawnCoordinator.enteredCharactersSnapshot();
             for (AgentManagedCharacter managed : agents) {
                 try {
-                    AgentPilotTickResult result = pilotService.dryRunTick(managed);
+                    AgentPilotTickResult result = pilotService.tick(managed);
                     log.debug("Agent profile {} tick planned {} with dispatch {}",
                             managed.profileId(), result.intent().type(), result.dispatchResult().status());
                 } catch (Exception e) {
-                    log.warn("Agent profile {} dry-run tick failed", managed.profileId(), e);
+                    log.warn("Agent profile {} tick failed", managed.profileId(), e);
                 }
             }
         } finally {
