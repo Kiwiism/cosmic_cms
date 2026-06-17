@@ -177,7 +177,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         if (portal == null) {
             return AgentActionResult.blockedByRuntime(capability(), "Portal '" + portalName + "' was not found on map " + currentMap.getId());
         }
-        return executePortal(context, currentMap, portal, "USE_PORTAL", null);
+        return executePortalWhenNearby(context, currentMap, portal, "USE_PORTAL", null);
     }
 
     private AgentActionResult executePortalStep(
@@ -201,6 +201,38 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
             return AgentActionResult.blockedByRuntime(capability(),
                     "Route portal '" + next.portalName() + "' no longer exists on map " + currentMap.getId(),
                     routeDetailsJson(route, proposedPortalAction(next, false, "Portal is missing")));
+        }
+        return executePortalWhenNearby(context, currentMap, portal, reason, route);
+    }
+
+    private AgentActionResult executePortalWhenNearby(
+            AgentActionContext context,
+            MapleMap currentMap,
+            Portal portal,
+            String reason,
+            AgentNavigationRoute route
+    ) {
+        Point portalPosition = portal.getPosition();
+        Character character = context.managed().character();
+        if (portalPosition != null && character != null && distanceSq(character.getPosition(), portalPosition) > ARRIVAL_DISTANCE_SQ) {
+            AgentActionResult approach = moveTowardPoint(context, portalPosition, "APPROACH_PORTAL", "portal " + portal.getName());
+            String movementJson = approach.detailsJson();
+            String details = route == null
+                    ? portalDetailsJson(context, currentMap, portal, false, "Agent must approach the portal before entering", movementJson)
+                    : routeDetailsJson(route, proposedPortalAction(portalEdge(currentMap, portal), false,
+                    "Agent must approach the portal before entering"), movementJson);
+            return new AgentActionResult(
+                    approach.status(),
+                    capability(),
+                    approach.gameplayMutated()
+                            ? reason + " moved toward portal " + portal.getName()
+                            : reason + " is waiting near portal " + portal.getName(),
+                    approach.policyAllowed(),
+                    approach.gameplayMutated(),
+                    approach.dryRun(),
+                    details,
+                    approach.completedAt()
+            );
         }
         return executePortal(context, currentMap, portal, reason, route);
     }
@@ -424,6 +456,10 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
     }
 
     private String routeDetailsJson(AgentNavigationRoute route, String proposedActionJson) {
+        return routeDetailsJson(route, proposedActionJson, null);
+    }
+
+    private String routeDetailsJson(AgentNavigationRoute route, String proposedActionJson, String movementJson) {
         StringBuilder builder = new StringBuilder("{");
         builder.append("\"routeState\":\"").append(route.found() ? "READY" : "UNAVAILABLE").append("\",")
                 .append("\"world\":").append(route.world()).append(',')
@@ -435,6 +471,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 .append("\"stepCount\":").append(route.steps().size()).append(',')
                 .append("\"nextStep\":").append(route.steps().isEmpty() ? "null" : edgeJson(route.steps().get(0))).append(',')
                 .append("\"proposedAction\":").append(proposedActionJson).append(',')
+                .append("\"movement\":").append(movementJson == null ? "null" : movementJson).append(',')
                 .append("\"steps\":[");
         for (int i = 0; i < route.steps().size(); i++) {
             if (i > 0) {
@@ -515,6 +552,17 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
     }
 
     private String portalDetailsJson(AgentActionContext context, MapleMap currentMap, Portal portal, boolean executable, String reason) {
+        return portalDetailsJson(context, currentMap, portal, executable, reason, null);
+    }
+
+    private String portalDetailsJson(
+            AgentActionContext context,
+            MapleMap currentMap,
+            Portal portal,
+            boolean executable,
+            String reason,
+            String movementJson
+    ) {
         return "{"
                 + "\"routeState\":\"DIRECT_PORTAL\","
                 + "\"world\":" + context.managed().client().getWorld() + ","
@@ -526,6 +574,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 + "\"stepCount\":1,"
                 + "\"nextStep\":" + edgeJson(portalEdge(currentMap, portal)) + ","
                 + "\"proposedAction\":" + proposedPortalAction(portalEdge(currentMap, portal), executable, reason) + ","
+                + "\"movement\":" + (movementJson == null ? "null" : movementJson) + ","
                 + "\"steps\":[" + edgeJson(portalEdge(currentMap, portal)) + "]"
                 + "}";
     }

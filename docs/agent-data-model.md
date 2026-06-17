@@ -55,11 +55,14 @@ intent, and writes an `INTENT_PLAN` row to `agent_action_logs`. It then passes
 the intent through a policy-gated dispatcher that writes `INTENT_DISPATCH`.
 `IDLE` and `WAIT` are accepted as no-ops. Navigation can execute conservative
 open, non-scripted portal movement for `MOVE_TO_MAP`, `FOLLOW_CHARACTER`, and
-`PORTAL` intents when the route is available. Navigation also supports bounded
-in-map repositioning for `MOVE x y`, `ROAM` toward the nearest safe traversal
-portal, and visible `FOLLOW_CHARACTER` targets. These local moves update server
-position and visibility with a capped step size; they do not synthesize client
-movement packets. Local movement records `MOVED`, `ALREADY_NEARBY`, `STUCK`, or
+`PORTAL` intents when the route is available. Portal execution is staged: if the
+agent is not near the portal, the adapter records an `APPROACH_PORTAL` movement
+instead of entering immediately; the portal is only used once the agent is close
+enough on a later tick. Navigation also supports bounded in-map repositioning for
+`MOVE x y`, `ROAM` toward the nearest safe traversal portal, and visible
+`FOLLOW_CHARACTER` targets. These local moves update server position and
+visibility with a capped step size; they do not synthesize client movement
+packets. Local movement records `MOVED`, `ALREADY_NEARBY`, `STUCK`, or
 `NO_PROGRESS` details so Agent CMS can show whether the bounded step actually
 reduced the remaining distance. `SAY` broadcasts normal map chat when policy
 allows it, while blocking command-like text. `LOOT` can pick nearby visible drops
