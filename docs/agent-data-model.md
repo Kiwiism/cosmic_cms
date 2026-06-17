@@ -39,7 +39,11 @@ perception counts, goal reason, and a compact diagnosis. The diagnosis includes
 `diagnosisState`, `diagnosisReason`, and `recommendedAction` so Agent CMS can
 show why a goal is running, blocked by policy, waiting for cooldown, blocked by
 an unimplemented runtime adapter, completed, or failed without requiring a
-schema migration for each new diagnostic field.
+schema migration for each new diagnostic field. Terminal checks use post-action
+knowledge when gameplay mutates, so level and item-use goals can complete on the
+same tick that changes character state. Simple one-shot goals also complete when
+their adapter returns a proven applied or ready state, such as `PICKED_UP`,
+`RECOVERY_USED`, `NPC_READY`, `SHOP_READY`, or `RECOVERY_SHOP_READY`.
 
 Each pilot tick also records a `TARGET_SCAN` memory event with the nearest
 player, monster, drop, NPC, and reactor from the current perception snapshot.

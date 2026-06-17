@@ -34,6 +34,17 @@ public final class AgentGoalProgressEvaluator {
             case "FOLLOW", "FOLLOW_CHARACTER", "COMPANION", "HANG_AROUND" ->
                     AgentGoalProgressDecision.running("Follow goals stay active while the target remains the companion objective");
             case "GRIND", "GRIND_TO_LEVEL" -> levelGoal(goal, knowledge);
+            case "LOOT" -> detailsStateGoal(dispatchResult, "\"lootState\":\"PICKED_UP\"", "Requested loot was picked up");
+            case "USE_ITEM", "USEITEM" ->
+                    detailsStateGoal(dispatchResult, "\"inventoryState\":\"RECOVERY_USED\"", "Requested recovery item was consumed");
+            case "NPC", "TALK_TO_NPC" ->
+                    detailsStateGoal(dispatchResult, "\"npcState\":\"NPC_READY\"", "Requested NPC is in interaction range");
+            case "SHOP" -> detailsAnyStateGoal(
+                    dispatchResult,
+                    "Requested shop is in interaction range",
+                    "\"shopState\":\"SHOP_READY\"",
+                    "\"shopState\":\"RECOVERY_SHOP_READY\""
+            );
             default -> AgentGoalProgressDecision.running("Goal requires a future executor before completion can be proven");
         };
     }
@@ -60,6 +71,33 @@ public final class AgentGoalProgressEvaluator {
         return AgentGoalProgressDecision.running(targetLevel == null
                 ? "No target level configured in target_ref or parameters_json"
                 : "Character level " + knowledge.level() + " is below target level " + targetLevel);
+    }
+
+    private AgentGoalProgressDecision detailsStateGoal(
+            AgentIntentDispatchResult dispatchResult,
+            String expectedNeedle,
+            String completedReason
+    ) {
+        return detailsAnyStateGoal(dispatchResult, completedReason, expectedNeedle);
+    }
+
+    private AgentGoalProgressDecision detailsAnyStateGoal(
+            AgentIntentDispatchResult dispatchResult,
+            String completedReason,
+            String... expectedNeedles
+    ) {
+        if (dispatchResult.status() != AgentActionStatus.OK) {
+            return AgentGoalProgressDecision.running("Waiting for an accepted dispatch before completion can be proven");
+        }
+        String details = dispatchResult.detailsJson();
+        if (details != null) {
+            for (String expectedNeedle : expectedNeedles) {
+                if (details.contains(expectedNeedle)) {
+                    return AgentGoalProgressDecision.completed(completedReason);
+                }
+            }
+        }
+        return AgentGoalProgressDecision.running("Action accepted but completion state is not reached yet");
     }
 
     private Integer targetLevel(AgentGoal goal) {

@@ -57,11 +57,14 @@ public final class AgentPilotService {
         AgentPerceptionSnapshot resultPerception = dispatchResult.gameplayMutated()
                 ? perceptionService.snapshot(managed)
                 : perception;
+        AgentKnowledgeSnapshot resultKnowledge = dispatchResult.gameplayMutated()
+                ? knowledgeService.snapshot(managed.character())
+                : knowledge;
         if (plan.hasGoal()) {
-            AgentGoalProgressDecision progressDecision = goalProgressEvaluator.evaluate(plan, dispatchResult, resultPerception, knowledge);
-            goalRepository.recordPlanningTick(plan.goal(), intent, dispatchResult, resultPerception, knowledge, progressDecision, plan.reason());
+            AgentGoalProgressDecision progressDecision = goalProgressEvaluator.evaluate(plan, dispatchResult, resultPerception, resultKnowledge);
+            goalRepository.recordPlanningTick(plan.goal(), intent, dispatchResult, resultPerception, resultKnowledge, progressDecision, plan.reason());
         }
-        runtimeService.rememberPilotTick(managed, intent, dispatchResult, resultPerception, knowledge, plan);
+        runtimeService.rememberPilotTick(managed, intent, dispatchResult, resultPerception, resultKnowledge, plan);
         AgentRuntimeSafetyReport safetyReport = safetyMonitor.evaluate(
                 managed,
                 perception,
