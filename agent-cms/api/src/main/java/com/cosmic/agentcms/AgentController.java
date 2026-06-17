@@ -31,11 +31,11 @@ public class AgentController {
             new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows ATTACK and GRIND intents to approach and basic-attack non-boss monsters.", false),
             new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows nearby visible drop pickup through normal server pickup rules.", false),
             new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows NPC/TALK intents to approach visible NPCs and record readiness. Dialog scripts are not opened yet.", false),
-            new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows SHOP/MERCHANT intents to approach visible shop NPCs and record readiness. Buying and selling are not enabled yet.", false),
+            new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows SHOP/MERCHANT intents to approach visible shop NPCs. Recovery aliases can buy one affordable HP/MP recovery item through normal shop rules.", false),
             new AgentCapabilityPolicy("intent.trade.enabled", "Trade readiness", "Allows TRADE readiness checks to inspect current trade state and nearby target players without opening trade or moving items/mesos.", false),
             new AgentCapabilityPolicy("intent.party.enabled", "Party readiness", "Allows PARTY readiness checks to inspect current party and nearby target players without inviting or joining.", false),
-            new AgentCapabilityPolicy("intent.inventory.enabled", "Inventory", "Allows USEITEM and EQUIP readiness checks to inspect matching inventory items without consuming or equipping them.", false),
-            new AgentCapabilityPolicy("intent.skill.enabled", "Skill readiness", "Allows SKILL/CAST readiness checks to inspect learned skills without casting them.", false),
+            new AgentCapabilityPolicy("intent.inventory.enabled", "Inventory", "Allows USEITEM and EQUIP actions. Recovery aliases consume one safe HP/MP item; EQUIP uses normal WZ slot and equip validation.", false),
+            new AgentCapabilityPolicy("intent.skill.enabled", "Skill readiness", "Allows SKILL/CAST readiness and safe self-buff application for no-cooldown, no-HP-cost statup skills.", false),
             new AgentCapabilityPolicy("intent.script.enabled", "Script fallback", "Allows unknown script intents to pass the policy gate. Keep disabled unless debugging parser behavior.", false)
     );
     private static final List<AgentCooldownPolicy> COOLDOWN_POLICIES = List.of(
@@ -45,11 +45,11 @@ public class AgentController {
             new AgentCooldownPolicy("cooldown.combat.millis", "Combat capability", "Default pacing for attack and grind intents.", 1_000),
             new AgentCooldownPolicy("cooldown.loot.millis", "Loot capability", "Default pacing for nearby pickup attempts.", 750),
             new AgentCooldownPolicy("cooldown.npc.millis", "NPC capability", "Default pacing for NPC approach and readiness intents.", 2_000),
-            new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for shop approach and readiness intents.", 2_000),
+            new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for shop approach and recovery purchase intents.", 2_000),
             new AgentCooldownPolicy("cooldown.trade.millis", "Trade capability", "Default pacing for trade readiness checks.", 5_000),
             new AgentCooldownPolicy("cooldown.party.millis", "Party capability", "Default pacing for party readiness checks.", 3_000),
-            new AgentCooldownPolicy("cooldown.inventory.millis", "Inventory capability", "Default pacing for item use and equip readiness checks.", 1_500),
-            new AgentCooldownPolicy("cooldown.skill.millis", "Skill capability", "Default pacing for skill readiness checks.", 1_000),
+            new AgentCooldownPolicy("cooldown.inventory.millis", "Inventory capability", "Default pacing for item use and equip attempts.", 1_500),
+            new AgentCooldownPolicy("cooldown.skill.millis", "Skill capability", "Default pacing for skill readiness and safe self-buff attempts.", 1_000),
             new AgentCooldownPolicy("cooldown.script.millis", "Script fallback capability", "Default pacing for unknown script intents.", 1_000),
             new AgentCooldownPolicy("cooldown.say.millis", "SAY override", "Optional override for SAY intent pacing. Falls back to chat capability when unset.", 10_000),
             new AgentCooldownPolicy("cooldown.move_to_map.millis", "MOVE_TO_MAP override", "Optional override for multi-map navigation pacing.", 1_000),
@@ -844,6 +844,17 @@ public class AgentController {
                 FROM agent_memory_events
                 WHERE event_type = 'SAFETY_CHECK'
                   AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                """));
+        summary.put("economy24h", oneSummary("""
+                SELECT
+                    COUNT(*) AS total_entries,
+                    SUM(CASE WHEN entry_type = 'LOOT_PICKUP' THEN 1 ELSE 0 END) AS loot_pickups,
+                    SUM(CASE WHEN entry_type = 'SHOP_BUY' THEN 1 ELSE 0 END) AS shop_buys,
+                    COALESCE(SUM(meso_delta), 0) AS net_meso_delta,
+                    COALESCE(SUM(CASE WHEN meso_delta < 0 THEN meso_delta ELSE 0 END), 0) AS meso_spent,
+                    COALESCE(SUM(CASE WHEN meso_delta > 0 THEN meso_delta ELSE 0 END), 0) AS meso_gained
+                FROM agent_economy_ledger
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                 """));
         summary.put("latestProblems", gameJdbc.queryForList("""
                 SELECT l.*, p.display_name, c.name character_name
