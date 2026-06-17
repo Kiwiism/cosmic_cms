@@ -697,7 +697,12 @@ public class AgentController {
     @GetMapping("/runtime/sessions")
     List<Map<String, Object>> runtimeSessions(@RequestParam(defaultValue = "") String q) {
         return gameJdbc.queryForList("""
-                SELECT s.*, p.display_name, c.name character_name, a.name account_name
+                SELECT s.*, p.display_name, c.name character_name, a.name account_name,
+                       CASE
+                           WHEN s.ended_at IS NULL
+                            AND COALESCE(s.last_tick_at, s.started_at) < DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+                           THEN 1 ELSE 0
+                       END AS stale
                 FROM agent_runtime_sessions s
                 JOIN agent_profiles p ON p.id = s.agent_profile_id
                 JOIN characters c ON c.id = s.character_id
@@ -707,6 +712,47 @@ public class AgentController {
                 ORDER BY s.id DESC
                 LIMIT 200
                 """, like(q), like(q), like(q), like(q), like(q));
+    }
+
+    @PostMapping("/runtime/sessions/{sessionId}/mark-stale-stopped")
+    Map<String, Object> markStaleSessionStopped(@PathVariable long sessionId,
+                                                @Valid @RequestBody StopSession body,
+                                                Principal principal) {
+        Map<String, Object> before = runtimeSession(sessionId);
+        if (before.get("ended_at") != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Runtime session is already closed");
+        }
+
+        int updated = gameJdbc.update("""
+                UPDATE agent_runtime_sessions
+                SET state='STOPPED',
+                    current_task='Stopped stale session through Agent CMS',
+                    stop_reason=?,
+                    ended_at=CURRENT_TIMESTAMP,
+                    last_tick_at=CURRENT_TIMESTAMP
+                WHERE id=?
+                  AND ended_at IS NULL
+                  AND COALESCE(last_tick_at, started_at) < DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+                """, valueOr(body.reason(), "Stopped stale session through Agent CMS"), sessionId);
+        if (updated == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only stale open sessions can be stopped from Agent CMS");
+        }
+
+        Map<String, Object> after = runtimeSession(sessionId);
+        audit(principal, "AGENT_RUNTIME_STALE_STOP", "agent_runtime_session:" + sessionId, before, after,
+                valueOr(body.reason(), "Stopped stale session through Agent CMS"));
+        return after;
+    }
+
+    private Map<String, Object> runtimeSession(long sessionId) {
+        return oneGame("""
+                SELECT s.*, p.display_name, c.name character_name, a.name account_name
+                FROM agent_runtime_sessions s
+                JOIN agent_profiles p ON p.id = s.agent_profile_id
+                JOIN characters c ON c.id = s.character_id
+                JOIN accounts a ON a.id = c.accountid
+                WHERE s.id=?
+                """, sessionId);
     }
 
     @GetMapping("/runtime/summary")
@@ -1029,6 +1075,8 @@ public class AgentController {
     record UpdateCooldown(Long millis, String reason) {}
 
     record AgentCooldownPolicy(String key, String label, String description, long defaultMillis) {}
+
+    record StopSession(String reason) {}
 
     record SaveScript(String name, Integer version, Boolean enabled, String scriptType, String body, String reason) {}
 

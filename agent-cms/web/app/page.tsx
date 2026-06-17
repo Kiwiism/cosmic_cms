@@ -114,6 +114,7 @@ function Runtime(){
  async function resetGlobalPolicy(policy:any){setError("");try{await api<any>(`/api/agents/policies/global/${encodeURIComponent(policy.key)}?reason=${encodeURIComponent(reason)}`,{method:"DELETE"});loadGlobalDefaults()}catch(x){setError((x as Error).message)}}
  async function setGlobalCooldown(cooldown:any,millis:any){setError("");const parsed=Number(millis);if(!Number.isFinite(parsed)||parsed<0){setError("Cooldown must be a non-negative number of milliseconds.");return}try{await api<any>(`/api/agents/cooldowns/global/${encodeURIComponent(cooldown.key)}`,{method:"PUT",body:JSON.stringify({millis:Math.round(parsed),reason})});loadGlobalDefaults()}catch(x){setError((x as Error).message)}}
  async function resetGlobalCooldown(cooldown:any){setError("");try{await api<any>(`/api/agents/cooldowns/global/${encodeURIComponent(cooldown.key)}?reason=${encodeURIComponent(reason)}`,{method:"DELETE"});loadGlobalDefaults()}catch(x){setError((x as Error).message)}}
+ async function stopStaleSession(session:any){setError("");try{await api<any>(`/api/agents/runtime/sessions/${session.id}/mark-stale-stopped`,{method:"POST",body:JSON.stringify({reason})});api<any[]>(`/api/agents/runtime/sessions?q=${encodeURIComponent(q)}`).then(setSessions);api<any>("/api/agents/runtime/summary").then(setSummary).catch(()=>setSummary(null))}catch(x){setError((x as Error).message)}}
  const active=sessions.filter(row=>!row.ended_at).length;
  const sessionSummary=summary?.sessions||{},actionSummary=summary?.actions24h||{},problems=summary?.latestProblems||[];
  return <><article className="panel intro"><Title title="Runtime sessions" sub="Live and historical runtime shells. This is read-only observability for agent lifecycle state."/></article>
@@ -133,8 +134,9 @@ function Runtime(){
   <section className="panel"><Title title="Session ledger" sub="Newest runtime sessions first."/>
    <div className="ledger-list">{sessions.map(session=><article className="ledger-card" key={session.id}>
     <div><strong>{session.display_name||session.character_name}</strong><small>{session.account_name} {"->"} {session.character_name}</small></div>
-    <span className={!session.ended_at?"active-state":"inactive-state"}>{session.state}</span>
+    <span className={Number(session.stale)===1||session.ended_at?"inactive-state":"active-state"}>{Number(session.stale)===1?"STALE":session.state}</span>
     <div className="ledger-grid"><Tile label="World" value={session.world}/><Tile label="Channel" value={session.channel}/><Tile label="Map" value={session.map_id}/><Tile label="Task" value={session.current_task||"none"}/><Tile label="Started" value={session.started_at}/><Tile label="Last tick" value={session.last_tick_at||"never"}/><Tile label="Ended" value={session.ended_at||"open"}/><Tile label="Stop reason" value={session.stop_reason||"none"}/></div>
+    {Number(session.stale)===1&&!session.ended_at&&<div className="policy-actions"><button className="danger" onClick={()=>stopStaleSession(session)}>Mark stale stopped</button></div>}
    </article>)}</div>{!sessions.length&&<p className="muted">No runtime sessions recorded yet.</p>}</section></>
 }
 

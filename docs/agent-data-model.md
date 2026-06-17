@@ -99,6 +99,11 @@ cooldown blocks, and the latest blocked or failed actions. This is intentionally
 read-only and uses existing runtime tables so it can be expanded without adding
 new server coupling.
 
+Agent CMS can mark stale open runtime sessions as stopped. The recovery action
+only applies to sessions with no heartbeat for more than two minutes, so it is
+for cleanup after interrupted experiments or crashes rather than controlling a
+live agent that is still ticking in memory.
+
 When `USE_AGENT_RUNTIME` is enabled, the runtime starts a maintenance scheduler
 that ticks already-entered agent characters every 5 seconds. The
 scheduler does not create sessions, enter characters, or spawn agents by itself;
