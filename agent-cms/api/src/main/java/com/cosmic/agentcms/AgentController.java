@@ -177,6 +177,44 @@ public class AgentController {
                 """, id);
     }
 
+    @GetMapping("/{id}/runtime/status")
+    Map<String, Object> runtimeStatus(@PathVariable int id) {
+        Map<String, Object> profile = agent(id);
+        Map<String, Object> status = new LinkedHashMap<>();
+        status.put("profile", profile);
+        status.put("latestSession", optionalGame("""
+                SELECT *
+                FROM agent_runtime_sessions
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 1
+                """, id));
+        status.put("latestAction", optionalGame("""
+                SELECT *
+                FROM agent_action_logs
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 1
+                """, id));
+        status.put("latestMemory", optionalGame("""
+                SELECT *
+                FROM agent_memory_events
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 1
+                """, id));
+        status.put("latestChat", optionalGame("""
+                SELECT *
+                FROM agent_chat_logs
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 1
+                """, id));
+        status.put("latestEconomy", optionalGame("""
+                SELECT *
+                FROM agent_economy_ledger
+                WHERE agent_profile_id=?
+                ORDER BY id DESC LIMIT 1
+                """, id));
+        return status;
+    }
+
     @GetMapping("/{id}/logs")
     List<Map<String, Object>> logs(@PathVariable int id) {
         return gameJdbc.queryForList("""
@@ -504,6 +542,11 @@ public class AgentController {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent record not found");
         }
         return rows.getFirst();
+    }
+
+    private Map<String, Object> optionalGame(String sql, Object... args) {
+        List<Map<String, Object>> rows = gameJdbc.queryForList(sql, args);
+        return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private String like(String value) {

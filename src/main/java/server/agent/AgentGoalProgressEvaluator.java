@@ -23,6 +23,9 @@ public final class AgentGoalProgressEvaluator {
         if (goal == null) {
             return AgentGoalProgressDecision.running("No goal selected");
         }
+        if (dispatchResult.status() == AgentActionStatus.FAILED) {
+            return AgentGoalProgressDecision.failed("Runtime dispatch failed: " + dispatchResult.message());
+        }
 
         String goalType = goal.goalType() == null ? "" : goal.goalType().trim().toUpperCase(Locale.ROOT);
         return switch (goalType) {

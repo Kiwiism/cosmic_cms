@@ -20,7 +20,21 @@ public final class AgentPolicyRepository {
         return global.orElse(capability.defaultEnabled());
     }
 
+    public long longPolicy(int agentProfileId, String policyKey, long fallback) throws SQLException {
+        Optional<String> perAgent = readRawPolicyValue(agentProfileId, policyKey);
+        if (perAgent.isPresent()) {
+            return parseLong(perAgent.get(), fallback);
+        }
+
+        Optional<String> global = readRawPolicyValue(0, policyKey);
+        return global.map(value -> parseLong(value, fallback)).orElse(fallback);
+    }
+
     private Optional<Boolean> readPolicyValue(int agentProfileId, String policyKey) throws SQLException {
+        return readRawPolicyValue(agentProfileId, policyKey).map(this::parseBoolean);
+    }
+
+    private Optional<String> readRawPolicyValue(int agentProfileId, String policyKey) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement("""
                      SELECT policy_value
@@ -35,8 +49,19 @@ public final class AgentPolicyRepository {
                 if (!result.next()) {
                     return Optional.empty();
                 }
-                return Optional.of(parseBoolean(result.getString("policy_value")));
+                return Optional.ofNullable(result.getString("policy_value"));
             }
+        }
+    }
+
+    private long parseLong(String value, long fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(value.trim()));
+        } catch (NumberFormatException ignored) {
+            return fallback;
         }
     }
 

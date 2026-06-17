@@ -12,4 +12,8 @@ public record AgentGoalProgressDecision(
     public static AgentGoalProgressDecision completed(String reason) {
         return new AgentGoalProgressDecision("COMPLETED", reason, true);
     }
+
+    public static AgentGoalProgressDecision failed(String reason) {
+        return new AgentGoalProgressDecision("FAILED", reason, true);
+    }
 }

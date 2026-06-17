@@ -62,6 +62,13 @@ cursor. This keeps multi-line scripts deterministic, wraps at the end of the
 script, and avoids adding extra state columns while the foundation is still
 evolving.
 
+Intent dispatch also passes through a runtime cooldown gate after capability
+policy succeeds. Cooldowns can be configured globally or per-agent through
+`agent_policies` using `cooldown.<capability>.millis` or
+`cooldown.<intent>.millis`; the intent-specific value wins. Cooldown blocks are
+logged as dispatch rows, but only successful dispatches start the next cooldown
+window.
+
 When `USE_AGENT_RUNTIME` is enabled, the runtime starts a maintenance scheduler
 that ticks already-entered agent characters every 5 seconds. The
 scheduler does not create sessions, enter characters, or spawn agents by itself;

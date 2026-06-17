@@ -151,6 +151,29 @@ public final class AgentRuntimeRepository {
         }
     }
 
+    public Instant latestSessionIntentDispatch(long runtimeSessionId, AgentIntentType intentType) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     SELECT created_at
+                     FROM agent_action_logs
+                     WHERE runtime_session_id = ?
+                       AND action_type = 'INTENT_DISPATCH'
+                       AND status = 'OK'
+                       AND details_json LIKE ?
+                     ORDER BY id DESC
+                     LIMIT 1
+                     """)) {
+            statement.setLong(1, runtimeSessionId);
+            statement.setString(2, "%\"intent\":\"" + intentType.name() + "\"%");
+            try (ResultSet result = statement.executeQuery()) {
+                if (!result.next()) {
+                    return null;
+                }
+                return nullableInstant(result, "created_at");
+            }
+        }
+    }
+
     public void remember(AgentMemoryEvent event) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement("""

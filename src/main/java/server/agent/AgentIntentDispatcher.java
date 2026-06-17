@@ -16,15 +16,18 @@ import java.time.Instant;
 public final class AgentIntentDispatcher {
     private final AgentRuntimeService runtimeService;
     private final AgentIntentPolicyService policyService;
+    private final AgentIntentCooldownService cooldownService;
     private final AgentActionService actionService;
 
     public AgentIntentDispatcher(
             AgentRuntimeService runtimeService,
             AgentIntentPolicyService policyService,
+            AgentIntentCooldownService cooldownService,
             AgentActionService actionService
     ) {
         this.runtimeService = runtimeService;
         this.policyService = policyService;
+        this.cooldownService = cooldownService;
         this.actionService = actionService;
     }
 
@@ -39,14 +42,23 @@ public final class AgentIntentDispatcher {
         if (!decision.allowed()) {
             actionResult = AgentActionResult.blockedByPolicy(decision.capability(), decision.message());
         } else {
-            actionResult = actionService.execute(new AgentActionContext(
-                    managed,
-                    intent,
-                    perception,
-                    decision,
-                    scriptSource,
-                    Instant.now()
-            ));
+            AgentIntentCooldownDecision cooldownDecision = cooldownService.evaluate(managed.profile(), managed.session(), intent);
+            if (!cooldownDecision.allowed()) {
+                actionResult = AgentActionResult.blockedByRuntime(
+                        decision.capability(),
+                        cooldownDecision.message(),
+                        cooldownDetailsJson(intent, cooldownDecision)
+                );
+            } else {
+                actionResult = actionService.execute(new AgentActionContext(
+                        managed,
+                        intent,
+                        perception,
+                        decision,
+                        scriptSource,
+                        Instant.now()
+                ));
+            }
         }
 
         AgentIntentDispatchResult result = AgentIntentDispatchResult.fromActionResult(intent, actionResult);
@@ -61,5 +73,15 @@ public final class AgentIntentDispatcher {
         }
         runtimeService.logDispatchedIntent(managed, intent, perception, scriptSource, result);
         return result;
+    }
+
+    private String cooldownDetailsJson(AgentIntent intent, AgentIntentCooldownDecision decision) {
+        return "{"
+                + "\"cooldownState\":\"BLOCKED\","
+                + "\"intent\":\"" + intent.type().name() + "\","
+                + "\"cooldownMillis\":" + decision.cooldownMillis() + ","
+                + "\"remainingMillis\":" + decision.remainingMillis() + ","
+                + "\"message\":\"" + decision.message().replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+                + "}";
     }
 }
