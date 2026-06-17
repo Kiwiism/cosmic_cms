@@ -21,6 +21,7 @@ public final class AgentRuntimeService {
     private static final Pattern CHAT_MESSAGE_PATTERN = Pattern.compile("\"message\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
     private static final Pattern COMBAT_STATE_PATTERN = Pattern.compile("\"combatState\"\\s*:\\s*\"([^\"]*)\"");
     private static final Pattern NPC_STATE_PATTERN = Pattern.compile("\"npcState\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern SHOP_STATE_PATTERN = Pattern.compile("\"shopState\"\\s*:\\s*\"([^\"]*)\"");
 
     private final AgentRuntimeRepository repository;
     private final AgentControlGuard controlGuard;
@@ -174,6 +175,7 @@ public final class AgentRuntimeService {
         rememberTargetScan(managed, perception);
         rememberCombatPreview(managed, intent, dispatchResult, perception);
         rememberNpcPreview(managed, intent, dispatchResult, perception);
+        rememberShopPreview(managed, intent, dispatchResult, perception);
     }
 
     public void failSession(AgentRuntimeSession session, String reason) {
@@ -600,6 +602,35 @@ public final class AgentRuntimeService {
                         + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
                         + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
                         + "\"npc\":" + nullableJsonObject(dispatchResult.detailsJson())
+                        + "}"
+        ));
+    }
+
+    private void rememberShopPreview(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult,
+            AgentPerceptionSnapshot perception
+    ) throws SQLException {
+        if (dispatchResult.capability() != AgentIntentCapability.SHOP || dispatchResult.detailsJson() == null) {
+            return;
+        }
+
+        String shopState = extractString(SHOP_STATE_PATTERN, dispatchResult.detailsJson());
+        repository.remember(new AgentMemoryEvent(
+                managed.profileId(),
+                "SHOP_PREVIEW",
+                dispatchResult.status() == AgentActionStatus.OK ? 3 : 2,
+                null,
+                null,
+                perception.mapId(),
+                "Shop " + intent.type() + " state: " + (shopState == null ? dispatchResult.status() : shopState),
+                "{"
+                        + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                        + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                        + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
+                        + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
+                        + "\"shop\":" + nullableJsonObject(dispatchResult.detailsJson())
                         + "}"
         ));
     }

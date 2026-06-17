@@ -83,9 +83,11 @@ allows it, while blocking command-like text. `LOOT` can pick nearby visible drop
 through the normal server pickup path when policy allows it, and successful
 pickups are written to `agent_economy_ledger`. `NPC` can select and approach a
 visible NPC, then records `NPC_READY` once inside interaction range; it does not
-open scripts or advance dialogs yet. The future-facing verbs `SHOP`, `TRADE`,
-`PARTY`, `USEITEM`, and `EQUIP` are parsed and audited, but blocked until their
-dedicated systems are implemented.
+open scripts or advance dialogs yet. `SHOP` can select and approach a visible
+NPC that has a database-backed shop, then records `SHOP_READY` once inside shop
+range; it does not open the shop or buy/sell items yet. The future-facing verbs
+`TRADE`, `PARTY`, `USEITEM`, and `EQUIP` are parsed and audited, but blocked
+until their dedicated systems are implemented.
 
 When an agent has no active goal, script fallback advances through parsed script
 lines using the current runtime session's previous `INTENT_PLAN` count as the

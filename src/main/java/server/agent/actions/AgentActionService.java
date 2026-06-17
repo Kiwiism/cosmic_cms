@@ -17,7 +17,7 @@ public final class AgentActionService {
         register(new AgentLootActionAdapter());
         register(new AgentCombatActionAdapter());
         register(new AgentNpcActionAdapter());
-        register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.SHOP, "Shop"));
+        register(new AgentShopActionAdapter());
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.TRADE, "Trade"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.PARTY, "Party"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.INVENTORY, "Inventory"));
