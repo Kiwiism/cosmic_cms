@@ -81,7 +81,11 @@ enough on a later tick. Navigation also supports bounded in-map repositioning fo
 visibility with a capped step size; they do not synthesize client movement
 packets. Local movement records `MOVED`, `ALREADY_NEARBY`, `STUCK`, or
 `NO_PROGRESS` details so Agent CMS can show whether the bounded step actually
-reduced the remaining distance. `SAY` broadcasts normal map chat when policy
+reduced the remaining distance. Explicit `MOVE_TO_MAP` and non-visible
+same-world/channel `FOLLOW_CHARACTER` routes can now use bounded portal graph
+expansion: the route finder may load adjacent non-scripted portal maps up to a
+small depth and map-count limit, while casual `ROAM` stays limited to the
+current loaded map's safe portals. `SAY` broadcasts normal map chat when policy
 allows it, while blocking command-like text. `LOOT` can pick nearby visible drops
 through the normal server pickup path when policy allows it, and successful
 pickups are written to `agent_economy_ledger`. `NPC` can select and approach a

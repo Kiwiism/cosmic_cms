@@ -229,7 +229,7 @@ public final class AgentPlannerService {
         }
 
         try {
-            AgentNavigationRoute route = navigationGraphService.findLoadedRoute(
+            AgentNavigationRoute route = navigationGraphService.findBoundedRoute(
                     perception.world(),
                     perception.channel(),
                     perception.mapId(),

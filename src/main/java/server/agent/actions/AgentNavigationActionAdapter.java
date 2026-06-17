@@ -68,7 +68,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
             return AgentActionResult.blockedByRuntime(capability(), "Cannot preview route without an available perception snapshot");
         }
 
-        AgentNavigationRoute route = navigationGraphService.findLoadedRoute(
+        AgentNavigationRoute route = navigationGraphService.findBoundedRoute(
                 context.perception().world(),
                 context.perception().channel(),
                 context.perception().mapId(),
@@ -394,7 +394,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         if (located.world() != context.perception().world() || located.channel() != context.perception().channel()) {
             return null;
         }
-        return navigationGraphService.findLoadedRoute(
+        return navigationGraphService.findBoundedRoute(
                 context.perception().world(),
                 context.perception().channel(),
                 context.perception().mapId(),
