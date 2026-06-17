@@ -95,8 +95,11 @@ generic aliases such as `attack`, `buff`, `active`, and `passive`, then record
 the agent's current party plus visible nearby player targets and records
 `PARTY_STATUS`, `PARTY_TARGET_READY`, `INVITE_TARGET_READY`, `ALREADY_PARTIED`,
 `PARTY_FULL`, or `NO_PARTY_TARGET`; it does not create, invite, join, leave, or
-expel party members yet. The future-facing verb `TRADE` is parsed and audited,
-but blocked until its dedicated system is implemented.
+expel party members yet. `TRADE` can inspect the current trade object plus
+visible nearby player targets and records `TRADE_STATUS`, `TRADE_TARGET_READY`,
+`TRADE_PARTNER_READY`, `TRADE_INVITE_PENDING`, `TRADE_BUSY`, `TRADE_OPEN`, or
+`NO_TRADE_TARGET`; it does not open trade windows, invite players, move items,
+or move mesos yet.
 
 When an agent has no active goal, script fallback advances through parsed script
 lines using the current runtime session's previous `INTENT_PLAN` count as the

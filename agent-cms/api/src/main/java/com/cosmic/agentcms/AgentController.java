@@ -32,7 +32,7 @@ public class AgentController {
             new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows nearby visible drop pickup through normal server pickup rules.", false),
             new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows NPC/TALK intents to approach visible NPCs and record readiness. Dialog scripts are not opened yet.", false),
             new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows SHOP/MERCHANT intents to approach visible shop NPCs and record readiness. Buying and selling are not enabled yet.", false),
-            new AgentCapabilityPolicy("intent.trade.enabled", "Trade", "Allows future TRADE intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.trade.enabled", "Trade readiness", "Allows TRADE readiness checks to inspect current trade state and nearby target players without opening trade or moving items/mesos.", false),
             new AgentCapabilityPolicy("intent.party.enabled", "Party readiness", "Allows PARTY readiness checks to inspect current party and nearby target players without inviting or joining.", false),
             new AgentCapabilityPolicy("intent.inventory.enabled", "Inventory", "Allows USEITEM and EQUIP readiness checks to inspect matching inventory items without consuming or equipping them.", false),
             new AgentCapabilityPolicy("intent.skill.enabled", "Skill readiness", "Allows SKILL/CAST readiness checks to inspect learned skills without casting them.", false),
@@ -46,7 +46,7 @@ public class AgentController {
             new AgentCooldownPolicy("cooldown.loot.millis", "Loot capability", "Default pacing for nearby pickup attempts.", 750),
             new AgentCooldownPolicy("cooldown.npc.millis", "NPC capability", "Default pacing for NPC approach and readiness intents.", 2_000),
             new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for shop approach and readiness intents.", 2_000),
-            new AgentCooldownPolicy("cooldown.trade.millis", "Trade capability", "Default pacing for future trade intents.", 5_000),
+            new AgentCooldownPolicy("cooldown.trade.millis", "Trade capability", "Default pacing for trade readiness checks.", 5_000),
             new AgentCooldownPolicy("cooldown.party.millis", "Party capability", "Default pacing for party readiness checks.", 3_000),
             new AgentCooldownPolicy("cooldown.inventory.millis", "Inventory capability", "Default pacing for item use and equip readiness checks.", 1_500),
             new AgentCooldownPolicy("cooldown.skill.millis", "Skill capability", "Default pacing for skill readiness checks.", 1_000),
@@ -1040,7 +1040,7 @@ public class AgentController {
     }
 
     private boolean futureGatedIntent(String intent) {
-        return List.of("TRADE", "UNKNOWN").contains(intent);
+        return List.of("UNKNOWN").contains(intent);
     }
 
     private String warningForIntent(String intent) {
@@ -1050,7 +1050,7 @@ public class AgentController {
         if (futureGatedIntent(intent)) {
             return "Parsed, but this intent still needs a dedicated runtime adapter before it can affect gameplay.";
         }
-        if (List.of("SAY", "ROAM", "MOVE", "MOVE_TO_MAP", "FOLLOW_CHARACTER", "USE_PORTAL", "LOOT", "ATTACK", "GRIND", "NPC", "SHOP", "USE_ITEM", "EQUIP", "SKILL").contains(intent)) {
+        if (List.of("SAY", "ROAM", "MOVE", "MOVE_TO_MAP", "FOLLOW_CHARACTER", "USE_PORTAL", "LOOT", "ATTACK", "GRIND", "NPC", "SHOP", "TRADE", "PARTY", "USE_ITEM", "EQUIP", "SKILL").contains(intent)) {
             return "Parsed. Execution still depends on the agent capability policy and cooldown settings.";
         }
         return "Parsed and supported by the current no-op/self runtime.";

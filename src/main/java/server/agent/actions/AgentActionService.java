@@ -20,7 +20,7 @@ public final class AgentActionService {
         register(new AgentShopActionAdapter());
         register(new AgentInventoryActionAdapter());
         register(new AgentSkillActionAdapter());
-        register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.TRADE, "Trade"));
+        register(new AgentTradeActionAdapter());
         register(new AgentPartyActionAdapter());
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.SCRIPT, "Script"));
     }

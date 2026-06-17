@@ -25,6 +25,7 @@ public final class AgentRuntimeService {
     private static final Pattern INVENTORY_STATE_PATTERN = Pattern.compile("\"inventoryState\"\\s*:\\s*\"([^\"]*)\"");
     private static final Pattern SKILL_STATE_PATTERN = Pattern.compile("\"skillState\"\\s*:\\s*\"([^\"]*)\"");
     private static final Pattern PARTY_STATE_PATTERN = Pattern.compile("\"partyState\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern TRADE_STATE_PATTERN = Pattern.compile("\"tradeState\"\\s*:\\s*\"([^\"]*)\"");
 
     private final AgentRuntimeRepository repository;
     private final AgentControlGuard controlGuard;
@@ -182,6 +183,7 @@ public final class AgentRuntimeService {
         rememberInventoryPreview(managed, intent, dispatchResult, perception);
         rememberSkillPreview(managed, intent, dispatchResult, perception);
         rememberPartyPreview(managed, intent, dispatchResult, perception);
+        rememberTradePreview(managed, intent, dispatchResult, perception);
     }
 
     public void failSession(AgentRuntimeSession session, String reason) {
@@ -725,6 +727,35 @@ public final class AgentRuntimeService {
                         + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
                         + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
                         + "\"party\":" + nullableJsonObject(dispatchResult.detailsJson())
+                        + "}"
+        ));
+    }
+
+    private void rememberTradePreview(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult,
+            AgentPerceptionSnapshot perception
+    ) throws SQLException {
+        if (dispatchResult.capability() != AgentIntentCapability.TRADE || dispatchResult.detailsJson() == null) {
+            return;
+        }
+
+        String tradeState = extractString(TRADE_STATE_PATTERN, dispatchResult.detailsJson());
+        repository.remember(new AgentMemoryEvent(
+                managed.profileId(),
+                "TRADE_PREVIEW",
+                dispatchResult.status() == AgentActionStatus.OK ? 3 : 2,
+                null,
+                null,
+                perception.mapId(),
+                "Trade " + intent.type() + " state: " + (tradeState == null ? dispatchResult.status() : tradeState),
+                "{"
+                        + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                        + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                        + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
+                        + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
+                        + "\"trade\":" + nullableJsonObject(dispatchResult.detailsJson())
                         + "}"
         ));
     }
