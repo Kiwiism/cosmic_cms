@@ -31,6 +31,17 @@ public final class AgentPlannerService {
         if (goal.isPresent()) {
             return planGoal(goal.get(), perception, knowledge);
         }
+        Optional<AgentIntent> recoveryIntent = recoveryIntent(knowledge);
+        if (recoveryIntent.isPresent()) {
+            return new AgentPlan(
+                    recoveryIntent.get(),
+                    null,
+                    "runtime_recovery",
+                    "Recovery preempted script/fallback planning for level " + knowledge.level()
+                            + " job " + knowledge.jobId()
+                            + vitalsReason(knowledge)
+            );
+        }
         Optional<AgentPlan> scriptPlan = planConfiguredScript(managed.profile(), managed.session());
         if (scriptPlan.isPresent()) {
             return scriptPlan.get();
@@ -84,8 +95,7 @@ public final class AgentPlannerService {
     ) throws SQLException {
         String behavior = normalizedBehavior(managed.profile());
         long previousPlans = managed.session() == null ? 0L : runtimeRepository.countSessionActions(managed.session().id(), "INTENT_PLAN");
-        Optional<AgentIntent> recoveryIntent = recoveryIntent(knowledge);
-        AgentIntent intent = recoveryIntent.orElseGet(() -> switch (behavior) {
+        AgentIntent intent = switch (behavior) {
             case "GRINDER", "GRIND", "TRAINER", "TRAIN" -> grindBehavior(perception);
             case "LOOTER", "LOOT" -> lootBehavior(perception);
             case "COMPANION", "FOLLOWER", "FOLLOW", "HANG_AROUND", "HANGAROUND" ->
@@ -93,11 +103,11 @@ public final class AgentPlannerService {
             case "TOWN_IDLER", "TOWNIDLER", "TOWN", "SOCIAL", "IDLER" -> townIdleBehavior(perception, previousPlans);
             case "ROAMER", "ROAM" -> AgentIntent.roam("behavior:" + behavior);
             default -> AgentIntent.idle(30_000L);
-        });
+        };
         return new AgentPlan(
                 intent,
                 null,
-                recoveryIntent.isPresent() ? "behavior_profile:" + behavior + "#recovery" : "behavior_profile:" + behavior,
+                "behavior_profile:" + behavior,
                 "No active goal or script; selected behavior " + behavior
                         + " for level " + knowledge.level() + " job " + knowledge.jobId()
                         + vitalsReason(knowledge)
@@ -108,7 +118,7 @@ public final class AgentPlannerService {
         if (perception != null && perception.available() && !perception.nearbyDrops().isEmpty()) {
             return AgentIntent.loot(bestVisibleDrop(perception));
         }
-        if (perception != null && perception.available() && !perception.nearbyMonsters().isEmpty()) {
+        if (perception != null && perception.available() && hasVisibleAliveMonster(perception)) {
             return AgentIntent.grind(bestVisibleMonster(perception));
         }
         return AgentIntent.roam("behavior:grinder find monsters");
@@ -172,9 +182,22 @@ public final class AgentPlannerService {
 
     private String bestVisibleMonster(AgentPerceptionSnapshot perception) {
         return perception.nearbyMonsters().stream()
-                .findFirst()
+                .filter(monster -> Boolean.TRUE.equals(monster.alive()))
+                .min((left, right) -> {
+                    int distance = Long.compare(left.distanceSq(), right.distanceSq());
+                    if (distance != 0) {
+                        return distance;
+                    }
+                    return Integer.compare(left.hp() == null ? Integer.MAX_VALUE : left.hp(), right.hp() == null ? Integer.MAX_VALUE : right.hp());
+                })
+                .or(() -> perception.nearbyMonsters().stream().filter(monster -> Boolean.TRUE.equals(monster.alive())).findFirst())
                 .map(monster -> monster.templateId() == null ? monster.name() : String.valueOf(monster.templateId()))
                 .orElse("nearest monster");
+    }
+
+    private boolean hasVisibleAliveMonster(AgentPerceptionSnapshot perception) {
+        return perception.nearbyMonsters().stream()
+                .anyMatch(monster -> Boolean.TRUE.equals(monster.alive()));
     }
 
     private String bestVisibleDrop(AgentPerceptionSnapshot perception) {

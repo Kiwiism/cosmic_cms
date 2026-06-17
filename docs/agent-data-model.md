@@ -109,7 +109,9 @@ When an agent has no active goal, script fallback advances through parsed script
 lines using the current runtime session's previous `INTENT_PLAN` count as the
 cursor. This keeps multi-line scripts deterministic, wraps at the end of the
 script, and avoids adding extra state columns while the foundation is still
-evolving.
+evolving. Low HP/MP recovery preempts configured scripts and behavior fallback,
+so scripted combat does not keep running while the agent should first consume a
+safe recovery item.
 
 If no active goal and no configured script are available, the planner now falls
 back to the profile's behavior preset. Initial presets are `GRINDER`, `LOOTER`,
