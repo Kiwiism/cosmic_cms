@@ -34,16 +34,42 @@ public final class AgentSkillActionAdapter implements AgentActionAdapter {
             return AgentActionResult.blockedByRuntime(
                     capability(),
                     "No matching learned skill is available for " + displayTarget(context.intent().argument()),
-                    skillDetailsJson(context, null, null, "NO_SKILL", "No matching learned skill found")
+                    skillDetailsJson(context, null, null, "NO_SKILL", "No matching learned skill found", false, null)
             );
         }
 
         Map.Entry<Skill, SkillEntry> entry = selected.get();
+        Skill skill = entry.getKey();
+        SkillEntry skillEntry = entry.getValue();
+        StatEffect effect = effect(skill, skillEntry);
+        if (canApplySelfBuff(character, skill, skillEntry, effect)) {
+            int beforeHp = character.getHp();
+            int beforeMp = character.getMp();
+            boolean applied = effect.applyTo(character);
+            int afterHp = character.getHp();
+            int afterMp = character.getMp();
+            String applicationJson = applicationJson(beforeHp, beforeMp, afterHp, afterMp, applied);
+            if (applied) {
+                return AgentActionResult.ok(
+                        capability(),
+                        "Applied self-buff skill " + skill.getId() + " at level " + skillEntry.skillevel,
+                        true,
+                        skillDetailsJson(context, skill, skillEntry, "BUFF_APPLIED", "Safe self-buff applied through StatEffect", true, applicationJson)
+                );
+            }
+
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Self-buff skill " + skill.getId() + " was rejected by StatEffect",
+                    skillDetailsJson(context, skill, skillEntry, "BUFF_REJECTED", "StatEffect.applyTo returned false", true, applicationJson)
+            );
+        }
+
         return AgentActionResult.ok(
                 capability(),
                 "Skill readiness found skill " + entry.getKey().getId() + " at level " + entry.getValue().skillevel,
                 false,
-                skillDetailsJson(context, entry.getKey(), entry.getValue(), "SKILL_READY", "Readiness only; skill casting is intentionally not executed yet")
+                skillDetailsJson(context, skill, skillEntry, "SKILL_READY", readinessNote(character, skill, skillEntry, effect), false, null)
         );
     }
 
@@ -114,12 +140,49 @@ public final class AgentSkillActionAdapter implements AgentActionAdapter {
         }
     }
 
+    private boolean canApplySelfBuff(Character character, Skill skill, SkillEntry entry, StatEffect effect) {
+        return skill != null
+                && entry != null
+                && effect != null
+                && isLikelyBuff(skill, entry)
+                && effect.getDamage() <= 0
+                && effect.getMobCount() <= 0
+                && effect.getHpCon() <= 0
+                && effect.getCooldown() <= 0
+                && effect.getMpCon() <= character.getMp()
+                && !character.skillIsCooling(skill.getId());
+    }
+
+    private String readinessNote(Character character, Skill skill, SkillEntry entry, StatEffect effect) {
+        if (effect == null) {
+            return "Readiness only; no usable effect data was found";
+        }
+        if (!isLikelyBuff(skill, entry)) {
+            return "Readiness only; direct skill casting is limited to safe self-buffs";
+        }
+        if (effect.getDamage() > 0 || effect.getMobCount() > 0) {
+            return "Readiness only; attack skills are handled by the combat adapter";
+        }
+        if (effect.getHpCon() > 0) {
+            return "Readiness only; HP-consuming skills are blocked for agent safety";
+        }
+        if (effect.getCooldown() > 0 || character.skillIsCooling(skill.getId())) {
+            return "Readiness only; cooldown skills are not cast directly by V1 agents";
+        }
+        if (effect.getMpCon() > character.getMp()) {
+            return "Readiness only; agent does not have enough MP to cast safely";
+        }
+        return "Readiness only; skill is not in the V1 direct-cast allowlist";
+    }
+
     private String skillDetailsJson(
             AgentActionContext context,
             Skill skill,
             SkillEntry entry,
             String state,
-            String note
+            String note,
+            boolean mutationEnabled,
+            String applicationJson
     ) {
         return "{"
                 + "\"skillState\":\"" + escapeJson(state) + "\","
@@ -129,7 +192,8 @@ public final class AgentSkillActionAdapter implements AgentActionAdapter {
                 + "\"channel\":" + channel(context) + ","
                 + "\"mapId\":" + mapId(context) + ","
                 + "\"selectedSkill\":" + skillJson(skill, entry) + ","
-                + "\"mutationEnabled\":false,"
+                + "\"mutationEnabled\":" + mutationEnabled + ","
+                + "\"application\":" + (applicationJson == null ? "null" : applicationJson) + ","
                 + "\"note\":\"" + escapeJson(note) + "\""
                 + "}";
     }
@@ -169,6 +233,18 @@ public final class AgentSkillActionAdapter implements AgentActionAdapter {
                 + "\"watk\":" + effect.getWatk() + ","
                 + "\"matk\":" + effect.getMatk() + ","
                 + "\"statupCount\":" + (effect.getStatups() == null ? 0 : effect.getStatups().size())
+                + "}";
+    }
+
+    private String applicationJson(int beforeHp, int beforeMp, int afterHp, int afterMp, boolean applied) {
+        return "{"
+                + "\"applied\":" + applied + ","
+                + "\"beforeHp\":" + beforeHp + ","
+                + "\"afterHp\":" + afterHp + ","
+                + "\"beforeMp\":" + beforeMp + ","
+                + "\"afterMp\":" + afterMp + ","
+                + "\"hpDelta\":" + (afterHp - beforeHp) + ","
+                + "\"mpDelta\":" + (afterMp - beforeMp)
                 + "}";
     }
 

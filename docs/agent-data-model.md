@@ -109,8 +109,10 @@ aliases such as `hp`, `mp`, and `potion`, then record `ITEM_READY`,
 `EQUIP_READY`, `NO_ITEM`, or `NO_EQUIP`; they do not consume items or equip gear
 yet. `SKILL` and `CAST` can inspect learned skills, resolve a skill by id or
 generic aliases such as `attack`, `buff`, `active`, and `passive`, then record
-`SKILL_READY` or `NO_SKILL`; direct skill intents still do not cast skills, but
-combat intents may use safe attack skills through the combat adapter. `PARTY` can inspect
+`SKILL_READY` or `NO_SKILL`; direct skill intents can apply safe self-buffs with
+statups when the skill has no cooldown, no HP cost, no attack target, and enough
+MP, recording `BUFF_APPLIED`. Combat intents may use safe attack skills through
+the combat adapter. `PARTY` can inspect
 the agent's current party plus visible nearby player targets and records
 `PARTY_STATUS`, `PARTY_TARGET_READY`, `INVITE_TARGET_READY`, `ALREADY_PARTIED`,
 `PARTY_FULL`, or `NO_PARTY_TARGET`; it does not create, invite, join, leave, or

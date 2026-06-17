@@ -37,6 +37,8 @@ public final class AgentGoalProgressEvaluator {
             case "LOOT" -> detailsStateGoal(dispatchResult, "\"lootState\":\"PICKED_UP\"", "Requested loot was picked up");
             case "USE_ITEM", "USEITEM" ->
                     detailsStateGoal(dispatchResult, "\"inventoryState\":\"RECOVERY_USED\"", "Requested recovery item was consumed");
+            case "SKILL", "CAST" ->
+                    detailsStateGoal(dispatchResult, "\"skillState\":\"BUFF_APPLIED\"", "Requested safe self-buff was applied");
             case "NPC", "TALK_TO_NPC" ->
                     detailsStateGoal(dispatchResult, "\"npcState\":\"NPC_READY\"", "Requested NPC is in interaction range");
             case "SHOP" -> detailsAnyStateGoal(
