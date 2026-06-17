@@ -12,21 +12,22 @@ public record AgentIntentDispatchResult(
         boolean policyAllowed,
         boolean gameplayMutated,
         boolean dryRun,
+        String detailsJson,
         Instant dispatchedAt
 ) {
     public static AgentIntentDispatchResult ok(AgentIntent intent, String message) {
         AgentIntentCapability capability = AgentIntentCapability.fromIntent(intent.type());
-        return new AgentIntentDispatchResult(intent, AgentActionStatus.OK, message, capability, true, false, true, Instant.now());
+        return new AgentIntentDispatchResult(intent, AgentActionStatus.OK, message, capability, true, false, true, null, Instant.now());
     }
 
     public static AgentIntentDispatchResult blocked(AgentIntent intent, String message) {
         AgentIntentCapability capability = AgentIntentCapability.fromIntent(intent.type());
-        return new AgentIntentDispatchResult(intent, AgentActionStatus.BLOCKED, message, capability, false, false, true, Instant.now());
+        return new AgentIntentDispatchResult(intent, AgentActionStatus.BLOCKED, message, capability, false, false, true, null, Instant.now());
     }
 
     public static AgentIntentDispatchResult blockedByRuntime(AgentIntent intent, String message) {
         AgentIntentCapability capability = AgentIntentCapability.fromIntent(intent.type());
-        return new AgentIntentDispatchResult(intent, AgentActionStatus.BLOCKED, message, capability, true, false, true, Instant.now());
+        return new AgentIntentDispatchResult(intent, AgentActionStatus.BLOCKED, message, capability, true, false, true, null, Instant.now());
     }
 
     public static AgentIntentDispatchResult fromActionResult(AgentIntent intent, AgentActionResult actionResult) {
@@ -38,6 +39,7 @@ public record AgentIntentDispatchResult(
                 actionResult.policyAllowed(),
                 actionResult.gameplayMutated(),
                 actionResult.dryRun(),
+                actionResult.detailsJson(),
                 actionResult.completedAt()
         );
     }

@@ -12,6 +12,7 @@ public record AgentActionResult(
         boolean policyAllowed,
         boolean gameplayMutated,
         boolean dryRun,
+        String detailsJson,
         Instant completedAt
 ) {
     public AgentActionResult {
@@ -19,18 +20,26 @@ public record AgentActionResult(
     }
 
     public static AgentActionResult ok(AgentIntentCapability capability, String message, boolean gameplayMutated) {
-        return new AgentActionResult(AgentActionStatus.OK, capability, message, true, gameplayMutated, !gameplayMutated, Instant.now());
+        return new AgentActionResult(AgentActionStatus.OK, capability, message, true, gameplayMutated, !gameplayMutated, null, Instant.now());
+    }
+
+    public static AgentActionResult ok(AgentIntentCapability capability, String message, boolean gameplayMutated, String detailsJson) {
+        return new AgentActionResult(AgentActionStatus.OK, capability, message, true, gameplayMutated, !gameplayMutated, detailsJson, Instant.now());
     }
 
     public static AgentActionResult blockedByPolicy(AgentIntentCapability capability, String message) {
-        return new AgentActionResult(AgentActionStatus.BLOCKED, capability, message, false, false, true, Instant.now());
+        return new AgentActionResult(AgentActionStatus.BLOCKED, capability, message, false, false, true, null, Instant.now());
     }
 
     public static AgentActionResult blockedByRuntime(AgentIntentCapability capability, String message) {
-        return new AgentActionResult(AgentActionStatus.BLOCKED, capability, message, true, false, true, Instant.now());
+        return new AgentActionResult(AgentActionStatus.BLOCKED, capability, message, true, false, true, null, Instant.now());
+    }
+
+    public static AgentActionResult blockedByRuntime(AgentIntentCapability capability, String message, String detailsJson) {
+        return new AgentActionResult(AgentActionStatus.BLOCKED, capability, message, true, false, true, detailsJson, Instant.now());
     }
 
     public static AgentActionResult failed(AgentIntentCapability capability, String message) {
-        return new AgentActionResult(AgentActionStatus.FAILED, capability, message, true, false, true, Instant.now());
+        return new AgentActionResult(AgentActionStatus.FAILED, capability, message, true, false, true, null, Instant.now());
     }
 }

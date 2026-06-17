@@ -140,11 +140,13 @@ public final class AgentRuntimeService {
                         + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
                         + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
                         + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
+                        + "\"dispatchDetails\":" + nullableJsonObject(dispatchResult.detailsJson()) + ","
                         + "\"plan\":" + planDetailsJson(plan) + ","
                         + "\"knowledge\":" + knowledgeDetailsJson(knowledge) + ","
                         + "\"perception\":" + perceptionDetailsJson(perception)
                         + "}"
         ));
+        rememberNavigationRoute(managed, intent, dispatchResult, perception);
     }
 
     public void failSession(AgentRuntimeSession session, String reason) {
@@ -320,8 +322,37 @@ public final class AgentRuntimeService {
                 + "\"policyAllowed\":" + dispatchResult.policyAllowed() + ","
                 + "\"gameplayMutated\":" + dispatchResult.gameplayMutated() + ","
                 + "\"dryRun\":" + dispatchResult.dryRun() + ","
+                + "\"actionDetails\":" + nullableJsonObject(dispatchResult.detailsJson()) + ","
                 + "\"perception\":" + perceptionDetailsJson(perception)
                 + "}";
+    }
+
+    private void rememberNavigationRoute(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult,
+            AgentPerceptionSnapshot perception
+    ) throws SQLException {
+        if (dispatchResult.capability() != AgentIntentCapability.NAVIGATION || dispatchResult.detailsJson() == null) {
+            return;
+        }
+
+        repository.remember(new AgentMemoryEvent(
+                managed.profileId(),
+                "NAVIGATION_ROUTE",
+                dispatchResult.status() == AgentActionStatus.OK ? 3 : 2,
+                null,
+                null,
+                perception.mapId(),
+                "Navigation " + intent.type() + " route state: " + dispatchResult.status(),
+                "{"
+                        + "\"intent\":\"" + escapeJson(intent.type().name()) + "\","
+                        + "\"argument\":\"" + escapeJson(intent.argument()) + "\","
+                        + "\"dispatchStatus\":\"" + escapeJson(dispatchResult.status().name()) + "\","
+                        + "\"dispatchMessage\":\"" + escapeJson(dispatchResult.message()) + "\","
+                        + "\"route\":" + dispatchResult.detailsJson()
+                        + "}"
+        ));
     }
 
     private String perceptionDetailsJson(AgentPerceptionSnapshot perception) {
@@ -385,6 +416,10 @@ public final class AgentRuntimeService {
 
     private String nullableBoolean(Boolean value) {
         return value == null ? "null" : value.toString();
+    }
+
+    private String nullableJsonObject(String value) {
+        return value == null || value.isBlank() ? "null" : value;
     }
 
     private String escapeJson(String value) {

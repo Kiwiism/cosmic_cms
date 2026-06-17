@@ -44,17 +44,20 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 targetMapId
         );
         if (!route.found()) {
-            return AgentActionResult.blockedByRuntime(capability(), "Navigation preview blocked: " + route.message());
+            return AgentActionResult.blockedByRuntime(capability(),
+                    "Navigation preview blocked: " + route.message(),
+                    routeDetailsJson(route));
         }
         if (route.steps().isEmpty()) {
-            return AgentActionResult.ok(capability(), "Navigation target is already the current map", false);
+            return AgentActionResult.ok(capability(), "Navigation target is already the current map", false, routeDetailsJson(route));
         }
 
         AgentPortalEdge next = route.steps().get(0);
         return AgentActionResult.blockedByRuntime(capability(),
                 "Navigation preview found " + route.steps().size() + " loaded portal step(s); next "
                         + next.portalName() + " -> map " + next.toMapId()
-                        + ". Gameplay movement remains disabled until the movement adapter is implemented.");
+                        + ". Gameplay movement remains disabled until the movement adapter is implemented.",
+                routeDetailsJson(route));
     }
 
     private Integer parseMapId(String value) {
@@ -66,5 +69,52 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         } catch (NumberFormatException e) {
             return null;
         }
+    }
+
+    private String routeDetailsJson(AgentNavigationRoute route) {
+        StringBuilder builder = new StringBuilder("{");
+        builder.append("\"routeState\":\"").append(route.found() ? "READY" : "UNAVAILABLE").append("\",")
+                .append("\"world\":").append(route.world()).append(',')
+                .append("\"channel\":").append(route.channel()).append(',')
+                .append("\"fromMapId\":").append(route.fromMapId()).append(',')
+                .append("\"toMapId\":").append(route.toMapId()).append(',')
+                .append("\"found\":").append(route.found()).append(',')
+                .append("\"message\":\"").append(escapeJson(route.message())).append("\",")
+                .append("\"stepCount\":").append(route.steps().size()).append(',')
+                .append("\"nextStep\":").append(route.steps().isEmpty() ? "null" : edgeJson(route.steps().get(0))).append(',')
+                .append("\"steps\":[");
+        for (int i = 0; i < route.steps().size(); i++) {
+            if (i > 0) {
+                builder.append(',');
+            }
+            builder.append(edgeJson(route.steps().get(i)));
+        }
+        return builder.append("]}").toString();
+    }
+
+    private String edgeJson(AgentPortalEdge edge) {
+        return "{"
+                + "\"fromMapId\":" + edge.fromMapId() + ","
+                + "\"fromMapName\":\"" + escapeJson(edge.fromMapName()) + "\","
+                + "\"portalId\":" + edge.portalId() + ","
+                + "\"portalName\":\"" + escapeJson(edge.portalName()) + "\","
+                + "\"portalType\":" + edge.portalType() + ","
+                + "\"position\":{\"x\":" + edge.x() + ",\"y\":" + edge.y() + "},"
+                + "\"toMapId\":" + edge.toMapId() + ","
+                + "\"targetPortalName\":\"" + escapeJson(edge.targetPortalName()) + "\","
+                + "\"open\":" + edge.open() + ","
+                + "\"scripted\":" + edge.scripted()
+                + "}";
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r");
     }
 }
