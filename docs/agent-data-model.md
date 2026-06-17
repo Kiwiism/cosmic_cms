@@ -84,7 +84,9 @@ without baking social state into gameplay classes.
 ### `agent_chat_logs`
 
 Stores inbound, outbound, and internal agent chat records for moderation,
-debugging, CMS viewing, and future personality tuning.
+debugging, CMS viewing, and future personality tuning. Successful `SAY` actions
+are recorded as `MAP_GENERAL` / `OUTBOUND` rows after the normal map chat packet
+is broadcast.
 
 ## Audit And Economy Tables
 

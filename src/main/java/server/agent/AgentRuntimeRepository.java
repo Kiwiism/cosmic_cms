@@ -234,6 +234,33 @@ public final class AgentRuntimeRepository {
         }
     }
 
+    public void recordChatLog(
+            int agentProfileId,
+            Long runtimeSessionId,
+            String channelType,
+            String direction,
+            Integer senderCharacterId,
+            Integer recipientCharacterId,
+            String message
+    ) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     INSERT INTO agent_chat_logs
+                     (agent_profile_id, runtime_session_id, channel_type, direction,
+                      sender_character_id, recipient_character_id, message)
+                     VALUES (?, ?, ?, ?, ?, ?, ?)
+                     """)) {
+            statement.setInt(1, agentProfileId);
+            setNullableLong(statement, 2, runtimeSessionId);
+            statement.setString(3, channelType);
+            statement.setString(4, direction);
+            setNullableInt(statement, 5, senderCharacterId);
+            setNullableInt(statement, 6, recipientCharacterId);
+            statement.setString(7, message);
+            statement.executeUpdate();
+        }
+    }
+
     private AgentRuntimeSession readSession(ResultSet result) throws SQLException {
         return new AgentRuntimeSession(
                 result.getLong("id"),

@@ -17,6 +17,8 @@ public final class AgentRuntimeService {
     private static final Pattern LOOT_ITEM_ID_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"itemId\"\\s*:\\s*(null|\\d+)");
     private static final Pattern LOOT_QUANTITY_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"quantity\"\\s*:\\s*(null|-?\\d+)");
     private static final Pattern LOOT_MESO_PATTERN = Pattern.compile("\"drop\"\\s*:\\s*\\{[^}]*\"meso\"\\s*:\\s*(null|-?\\d+)");
+    private static final Pattern CHAT_STATE_PATTERN = Pattern.compile("\"chatState\"\\s*:\\s*\"([^\"]*)\"");
+    private static final Pattern CHAT_MESSAGE_PATTERN = Pattern.compile("\"message\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
 
     private final AgentRuntimeRepository repository;
     private final AgentControlGuard controlGuard;
@@ -166,6 +168,7 @@ public final class AgentRuntimeService {
         rememberNavigationRoute(managed, intent, dispatchResult, perception);
         rememberCompanionRelationship(managed, intent, dispatchResult, perception);
         rememberLootEconomy(managed, intent, dispatchResult, perception);
+        rememberOutboundChat(managed, intent, dispatchResult);
     }
 
     public void failSession(AgentRuntimeSession session, String reason) {
@@ -453,6 +456,34 @@ public final class AgentRuntimeService {
         );
     }
 
+    private void rememberOutboundChat(
+            AgentManagedCharacter managed,
+            AgentIntent intent,
+            AgentIntentDispatchResult dispatchResult
+    ) throws SQLException {
+        if (intent.type() != AgentIntentType.SAY
+                || !dispatchResult.gameplayMutated()
+                || dispatchResult.detailsJson() == null
+                || !"SENT".equals(extractString(CHAT_STATE_PATTERN, dispatchResult.detailsJson()))) {
+            return;
+        }
+
+        String message = unescapeJson(extractString(CHAT_MESSAGE_PATTERN, dispatchResult.detailsJson()));
+        if (message == null || message.isBlank()) {
+            return;
+        }
+
+        repository.recordChatLog(
+                managed.profileId(),
+                managed.session().id(),
+                "MAP_GENERAL",
+                "OUTBOUND",
+                managed.characterId(),
+                null,
+                message
+        );
+    }
+
     private Integer extractLocatedTargetId(String detailsJson) {
         Matcher matcher = LOCATED_TARGET_ID_PATTERN.matcher(detailsJson);
         if (!matcher.find()) {
@@ -473,6 +504,36 @@ public final class AgentRuntimeService {
     private String extractString(Pattern pattern, String detailsJson) {
         Matcher matcher = pattern.matcher(detailsJson);
         return matcher.find() ? matcher.group(1) : null;
+    }
+
+    private String unescapeJson(String value) {
+        if (value == null) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder(value.length());
+        boolean escaping = false;
+        for (int i = 0; i < value.length(); i++) {
+            char current = value.charAt(i);
+            if (escaping) {
+                builder.append(switch (current) {
+                    case 'n' -> '\n';
+                    case 'r' -> '\r';
+                    case 't' -> '\t';
+                    case '\\' -> '\\';
+                    case '"' -> '"';
+                    default -> current;
+                });
+                escaping = false;
+            } else if (current == '\\') {
+                escaping = true;
+            } else {
+                builder.append(current);
+            }
+        }
+        if (escaping) {
+            builder.append('\\');
+        }
+        return builder.toString();
     }
 
     private Integer extractNullableInteger(Pattern pattern, String detailsJson) {
