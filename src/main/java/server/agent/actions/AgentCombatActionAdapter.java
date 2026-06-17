@@ -1,10 +1,13 @@
 package server.agent.actions;
 
 import client.Character;
+import server.agent.AgentActionStatus;
 import server.agent.AgentIntentCapability;
 import server.agent.AgentIntentType;
 import server.agent.AgentPerceptionSnapshot;
+import server.life.Monster;
 import server.maps.MapleMap;
+import tools.PacketCreator;
 
 import java.awt.Point;
 import java.util.Comparator;
@@ -14,6 +17,7 @@ public final class AgentCombatActionAdapter implements AgentActionAdapter {
     private static final int MAX_APPROACH_STEP_X = 180;
     private static final int MAX_APPROACH_STEP_Y = 120;
     private static final int ATTACK_RANGE_SQ = 150 * 150;
+    private static final int MAX_BASIC_ATTACK_DAMAGE = 50_000;
 
     @Override
     public AgentIntentCapability capability() {
@@ -35,17 +39,13 @@ public final class AgentCombatActionAdapter implements AgentActionAdapter {
             return AgentActionResult.blockedByRuntime(
                     capability(),
                     "No alive visible monster is available for " + type,
-                    combatDetailsJson(context, null, "NO_TARGET", null)
+                    combatDetailsJson(context, null, "NO_TARGET", null, null)
             );
         }
 
         AgentPerceptionSnapshot.AgentVisibleObject monster = target.get();
         if (monster.distanceSq() <= ATTACK_RANGE_SQ) {
-            return AgentActionResult.blockedByRuntime(
-                    capability(),
-                    "Combat target " + monsterLabel(monster) + " is in range, but attack execution is intentionally not enabled yet",
-                    combatDetailsJson(context, monster, "ATTACK_READY", null)
-            );
+            return basicAttack(context, monster);
         }
 
         AgentActionResult approach = approachMonster(context, monster);
@@ -58,9 +58,67 @@ public final class AgentCombatActionAdapter implements AgentActionAdapter {
                 approach.policyAllowed(),
                 approach.gameplayMutated(),
                 approach.dryRun(),
-                combatDetailsJson(context, monster, "APPROACHING_TARGET", approach.detailsJson()),
+                combatDetailsJson(context, monster, "APPROACHING_TARGET", approach.detailsJson(), null),
                 approach.completedAt()
         );
+    }
+
+    private AgentActionResult basicAttack(AgentActionContext context, AgentPerceptionSnapshot.AgentVisibleObject visibleMonster) {
+        Character character = context.managed().character();
+        MapleMap map = character == null ? null : character.getMap();
+        if (character == null || map == null) {
+            return AgentActionResult.blockedByRuntime(capability(), "Cannot attack without an attached character and map");
+        }
+
+        Monster monster = map.getMonsterByOid(visibleMonster.objectId());
+        if (monster == null || !monster.isAlive()) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Combat target " + monsterLabel(visibleMonster) + " is no longer alive",
+                    combatDetailsJson(context, visibleMonster, "TARGET_GONE", null, null)
+            );
+        }
+        if (monster.isBoss()) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Agent basic attacks do not target bosses yet",
+                    combatDetailsJson(context, visibleMonster, "BOSS_BLOCKED", null, attackDetailsJson(monster, 0, 0, false, 0))
+            );
+        }
+
+        int beforeHp = monster.getHp();
+        int damage = calculateBasicAttackDamage(character, beforeHp);
+        if (damage <= 0) {
+            return AgentActionResult.blockedByRuntime(
+                    capability(),
+                    "Could not calculate a positive basic attack damage value",
+                    combatDetailsJson(context, visibleMonster, "NO_DAMAGE", null, attackDetailsJson(monster, beforeHp, beforeHp, false, 0))
+            );
+        }
+
+        map.broadcastMessage(character, PacketCreator.damageMonster(monster.getObjectId(), damage), true);
+        boolean applied = map.damageMonster(character, monster, damage, (short) 0);
+        int afterHp = monster.isAlive() ? monster.getHp() : 0;
+        String state = applied ? "BASIC_ATTACK_APPLIED" : "BASIC_ATTACK_REJECTED";
+        return new AgentActionResult(
+                applied ? AgentActionStatus.OK : AgentActionStatus.BLOCKED,
+                capability(),
+                applied
+                        ? "Basic attacked " + monsterLabel(visibleMonster) + " for " + damage + " damage"
+                        : "Basic attack against " + monsterLabel(visibleMonster) + " was rejected by the map",
+                true,
+                applied,
+                false,
+                combatDetailsJson(context, visibleMonster, state, null, attackDetailsJson(monster, beforeHp, afterHp, applied, damage)),
+                java.time.Instant.now()
+        );
+    }
+
+    private int calculateBasicAttackDamage(Character character, int monsterHp) {
+        int totalWatk = Math.max(1, character.getTotalWatk());
+        int maxBaseDamage = Math.max(1, character.calculateMaxBaseDamage(totalWatk));
+        int conservativeDamage = Math.max(1, maxBaseDamage / 2);
+        return Math.min(Math.min(conservativeDamage, MAX_BASIC_ATTACK_DAMAGE), monsterHp);
     }
 
     private Optional<AgentPerceptionSnapshot.AgentVisibleObject> selectMonster(AgentActionContext context) {
@@ -143,7 +201,8 @@ public final class AgentCombatActionAdapter implements AgentActionAdapter {
             AgentActionContext context,
             AgentPerceptionSnapshot.AgentVisibleObject monster,
             String state,
-            String movementJson
+            String movementJson,
+            String attackJson
     ) {
         return "{"
                 + "\"combatState\":\"" + state + "\","
@@ -155,7 +214,22 @@ public final class AgentCombatActionAdapter implements AgentActionAdapter {
                 + "\"agentPosition\":{\"x\":" + context.perception().x() + ",\"y\":" + context.perception().y() + "},"
                 + "\"attackRangeSq\":" + ATTACK_RANGE_SQ + ","
                 + "\"target\":" + (monster == null ? "null" : monsterJson(monster)) + ","
-                + "\"movement\":" + (movementJson == null ? "null" : movementJson)
+                + "\"movement\":" + (movementJson == null ? "null" : movementJson) + ","
+                + "\"attack\":" + (attackJson == null ? "null" : attackJson)
+                + "}";
+    }
+
+    private String attackDetailsJson(Monster monster, int beforeHp, int afterHp, boolean applied, int damage) {
+        return "{"
+                + "\"action\":\"BASIC_ATTACK\","
+                + "\"monsterObjectId\":" + monster.getObjectId() + ","
+                + "\"monsterId\":" + monster.getId() + ","
+                + "\"boss\":" + monster.isBoss() + ","
+                + "\"damage\":" + damage + ","
+                + "\"maxDamageCap\":" + MAX_BASIC_ATTACK_DAMAGE + ","
+                + "\"hpBefore\":" + beforeHp + ","
+                + "\"hpAfter\":" + afterHp + ","
+                + "\"applied\":" + applied
                 + "}";
     }
 
