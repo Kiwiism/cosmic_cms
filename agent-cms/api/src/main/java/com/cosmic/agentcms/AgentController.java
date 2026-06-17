@@ -24,7 +24,7 @@ public class AgentController {
     private final BridgeClient bridge;
     private static final List<AgentCapabilityPolicy> CAPABILITY_POLICIES = List.of(
             new AgentCapabilityPolicy("intent.self.enabled", "Self timing", "Allows no-op IDLE and WAIT runtime intents.", true),
-            new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows future SAY/chat intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows SAY intents to broadcast normal map chat.", false),
             new AgentCapabilityPolicy("intent.navigation.enabled", "Navigation", "Allows ROAM, MOVE, MAP, FOLLOW and PORTAL intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows future ATTACK and GRIND intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows nearby visible drop pickup through normal server pickup rules.", false),

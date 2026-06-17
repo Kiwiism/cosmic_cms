@@ -12,9 +12,9 @@ public final class AgentActionService {
 
     public AgentActionService(AgentNavigationGraphService navigationGraphService, AgentCharacterLocationLookup characterLocationLookup) {
         register(new AgentSelfActionAdapter());
+        register(new AgentChatActionAdapter());
         register(new AgentNavigationActionAdapter(navigationGraphService, characterLocationLookup));
         register(new AgentLootActionAdapter());
-        register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.CHAT, "Chat"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.COMBAT, "Combat"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.NPC, "NPC"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.SHOP, "Shop"));
