@@ -32,6 +32,7 @@ export default function App(){
 
 function Title({title,sub}:{title:string;sub?:string}){return <div className="title"><p className="eyebrow">COSMIC AGENT CENTER</p><h2>{title}</h2>{sub&&<p>{sub}</p>}</div>}
 function Tile({label,value}:{label:string;value:any}){return <div><small>{label}</small><strong>{String(value??"unset")}</strong></div>}
+function parseJson(value:any){try{return value?JSON.parse(String(value)):null}catch{return null}}
 
 function Agents(){
  const [agents,setAgents]=useState<any[]>([]),[selected,setSelected]=useState<any|null>(null),[q,setQ]=useState(""),[charQ,setCharQ]=useState(""),[chars,setChars]=useState<any[]>([]),[plan,setPlan]=useState<any|null>(null),[logs,setLogs]=useState<any[]>([]),[memory,setMemory]=useState<any[]>([]),[goals,setGoals]=useState<any[]>([]),[policies,setPolicies]=useState<any[]>([]),[scripts,setScripts]=useState<any[]>([]),[editingScript,setEditingScript]=useState<any|null>(null),[runtimeResult,setRuntimeResult]=useState<any|null>(null),[goalDraft,setGoalDraft]=useState({goalType:"IDLE",priority:0,targetMap:"",targetRef:""}),[scriptDraft,setScriptDraft]=useState({name:"idle-town",version:1,enabled:true,scriptType:"TEXT",body:"IDLE 30"}),[reason,setReason]=useState("Updated through Agent CMS"),[error,setError]=useState("");
@@ -113,11 +114,19 @@ function Runtime(){
 }
 
 function Social(){
- const [q,setQ]=useState(""),[relationships,setRelationships]=useState<any[]>([]),[chat,setChat]=useState<any[]>([]),[error,setError]=useState("");
- useEffect(()=>{const timer=setTimeout(()=>{api<any[]>(`/api/agents/social/relationships?q=${encodeURIComponent(q)}`).then(setRelationships).catch(x=>setError((x as Error).message));api<any[]>(`/api/agents/social/chat?q=${encodeURIComponent(q)}`).then(setChat).catch(x=>setError((x as Error).message))},160);return()=>clearTimeout(timer)},[q]);
+ const [q,setQ]=useState(""),[relationships,setRelationships]=useState<any[]>([]),[chat,setChat]=useState<any[]>([]),[proximity,setProximity]=useState<any[]>([]),[error,setError]=useState("");
+ useEffect(()=>{const timer=setTimeout(()=>{api<any[]>(`/api/agents/social/relationships?q=${encodeURIComponent(q)}`).then(setRelationships).catch(x=>setError((x as Error).message));api<any[]>(`/api/agents/social/chat?q=${encodeURIComponent(q)}`).then(setChat).catch(x=>setError((x as Error).message));api<any[]>(`/api/agents/social/proximity?q=${encodeURIComponent(q)}`).then(setProximity).catch(x=>setError((x as Error).message))},160);return()=>clearTimeout(timer)},[q]);
+ const companionNames=new Set(relationships.filter(row=>row.relationship_type==="COMPANION").map(row=>String(row.related_character_name||"").toLowerCase()));
  return <><article className="panel intro"><Title title="Social memory" sub="Companion targets, relationships and chat logs. FOLLOW_CHARACTER goals can seed companion relationships automatically."/></article>
   <PageToolbar query={q} onQueryChange={setQ} placeholder="Search agent, player, relationship, or message"/>
   {error&&<div className="error">{error}</div>}
+  <section className="panel"><Title title="Nearby player observations" sub={`${proximity.length} recent perception snapshots. Companion targets are highlighted when visible.`}/>
+   <div className="ledger-list">{proximity.map(row=>{const details=parseJson(row.details_json),players=details?.perception?.nearby?.players||[];return <article className="ledger-card social-card" key={row.id}>
+    <div><strong>{row.display_name||row.agent_character_name}</strong><small>Map {details?.perception?.mapId??row.map_id??row.map} | {row.created_at}</small></div>
+    {players.length?<div className="nearby-list">{players.map((player:any)=><span className={companionNames.has(String(player.name||"").toLowerCase())?"nearby-player companion":"nearby-player"} key={`${row.id}-${player.objectId}-${player.name}`}>
+     <strong>{player.name||player.templateId||player.objectId}</strong><small>Lv. {player.level??"?"} | x {player.x??0}, y {player.y??0} | distanceSq {player.distanceSq??0}</small>
+    </span>)}</div>:<p className="muted">No nearby players in this snapshot.</p>}
+   </article>})}</div>{!proximity.length&&<p className="muted">No proximity snapshots yet. Enter an agent and run a dry-run tick.</p>}</section>
   <div className="agent-detail"><section className="panel"><Title title="Relationships" sub={`${relationships.length} relationship records. COMPANION means the agent has been assigned or observed following that character.`}/>
    <div className="ledger-list">{relationships.map(row=><article className="ledger-card social-card" key={row.id}>
     <div><strong>{row.display_name||row.agent_character_name} {"->"} {row.related_character_name}</strong><small>{row.related_account_name} | {row.relationship_type}</small></div>

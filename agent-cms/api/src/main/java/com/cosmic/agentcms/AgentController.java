@@ -467,6 +467,21 @@ public class AgentController {
                 """, like(q), like(q), like(q), like(q), like(q));
     }
 
+    @GetMapping("/social/proximity")
+    List<Map<String, Object>> proximity(@RequestParam(defaultValue = "") String q) {
+        return gameJdbc.queryForList("""
+                SELECT m.*, p.display_name, c.name agent_character_name, c.world, c.map
+                FROM agent_memory_events m
+                JOIN agent_profiles p ON p.id = m.agent_profile_id
+                JOIN characters c ON c.id = p.character_id
+                WHERE m.event_type = 'PILOT_TICK'
+                  AND m.details_json LIKE '%"players"%'
+                  AND (p.display_name LIKE ? OR c.name LIKE ? OR m.summary LIKE ? OR m.details_json LIKE ?)
+                ORDER BY m.id DESC
+                LIMIT 100
+                """, like(q), like(q), like(q), like(q));
+    }
+
     @GetMapping("/economy/ledger")
     List<Map<String, Object>> economyLedger(@RequestParam(defaultValue = "") String q) {
         return gameJdbc.queryForList("""
