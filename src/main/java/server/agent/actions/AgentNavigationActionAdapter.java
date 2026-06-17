@@ -132,7 +132,8 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 approach.policyAllowed(),
                 approach.gameplayMutated(),
                 approach.dryRun(),
-                followDetailsJson(context, target, matched, located.orElse(null), null, "TARGET_VISIBLE", proposedApproachAction(context, matched)),
+                followDetailsJson(context, target, matched, located.orElse(null), null, "TARGET_VISIBLE",
+                        proposedApproachAction(context, matched), approach.detailsJson()),
                 approach.completedAt()
         );
     }
@@ -276,11 +277,24 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         Point next = boundedStep(start, target);
         Point grounded = currentMap.getGroundBelow(next);
         Point destination = grounded == null ? next : grounded;
+        long distanceSqAfter = distanceSq(destination, target);
+        if (destination.equals(start)) {
+            return AgentActionResult.blockedByRuntime(capability(),
+                    action + " could not move from " + pointLabel(start) + " toward " + targetLabel
+                            + "; the bounded step resolved to the current position.",
+                    localMoveDetailsJson(context, start, destination, target, action, targetLabel, "STUCK", grounded != null));
+        }
+        if (distanceSqAfter >= distanceSq) {
+            return AgentActionResult.blockedByRuntime(capability(),
+                    action + " could not make progress from " + pointLabel(start) + " toward " + targetLabel
+                            + "; ground snapping would increase or preserve the remaining distance.",
+                    localMoveDetailsJson(context, start, destination, target, action, targetLabel, "NO_PROGRESS", grounded != null));
+        }
         currentMap.movePlayer(character, destination);
         return AgentActionResult.ok(capability(),
                 action + " moved from " + pointLabel(start) + " toward " + targetLabel + " at " + pointLabel(target),
                 true,
-                localMoveDetailsJson(context, start, destination, target, action, targetLabel, "MOVED"));
+                localMoveDetailsJson(context, start, destination, target, action, targetLabel, "MOVED", grounded != null));
     }
 
     private Point boundedStep(Point start, Point target) {
@@ -455,6 +469,19 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
             String state,
             String proposedActionJson
     ) {
+        return followDetailsJson(context, requestedTarget, matched, located, route, state, proposedActionJson, null);
+    }
+
+    private String followDetailsJson(
+            AgentActionContext context,
+            String requestedTarget,
+            AgentPerceptionSnapshot.AgentVisibleObject matched,
+            AgentCharacterLocationLookup.LocatedCharacter located,
+            AgentNavigationRoute route,
+            String state,
+            String proposedActionJson,
+            String movementJson
+    ) {
         return "{"
                 + "\"followState\":\"" + state + "\","
                 + "\"world\":" + context.perception().world() + ","
@@ -466,6 +493,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 + "\"target\":" + (matched == null ? "null" : visiblePlayerJson(matched)) + ","
                 + "\"locatedTarget\":" + (located == null ? "null" : locatedJson(located)) + ","
                 + "\"proposedAction\":" + proposedActionJson + ","
+                + "\"movement\":" + (movementJson == null ? "null" : movementJson) + ","
                 + "\"route\":" + (route == null ? "null" : routeDetailsJson(route, proposedActionJson))
                 + "}";
     }
@@ -511,6 +539,21 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
             String targetLabel,
             String state
     ) {
+        return localMoveDetailsJson(context, from, to, target, action, targetLabel, state, false);
+    }
+
+    private String localMoveDetailsJson(
+            AgentActionContext context,
+            Point from,
+            Point to,
+            Point target,
+            String action,
+            String targetLabel,
+            String state,
+            boolean grounded
+    ) {
+        long before = distanceSq(from, target);
+        long after = distanceSq(to, target);
         return "{"
                 + "\"movementState\":\"" + state + "\","
                 + "\"action\":\"" + escapeJson(action) + "\","
@@ -522,8 +565,10 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 + "\"to\":{\"x\":" + to.x + ",\"y\":" + to.y + "},"
                 + "\"target\":{\"x\":" + target.x + ",\"y\":" + target.y + "},"
                 + "\"stepLimit\":{\"x\":" + MAX_LOCAL_STEP_X + ",\"y\":" + MAX_LOCAL_STEP_Y + "},"
-                + "\"distanceSqBefore\":" + distanceSq(from, target) + ","
-                + "\"distanceSqAfter\":" + distanceSq(to, target)
+                + "\"grounded\":" + grounded + ","
+                + "\"progressed\":" + (after < before) + ","
+                + "\"distanceSqBefore\":" + before + ","
+                + "\"distanceSqAfter\":" + after
                 + "}";
     }
 

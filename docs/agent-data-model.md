@@ -59,12 +59,14 @@ open, non-scripted portal movement for `MOVE_TO_MAP`, `FOLLOW_CHARACTER`, and
 in-map repositioning for `MOVE x y`, `ROAM` toward the nearest safe traversal
 portal, and visible `FOLLOW_CHARACTER` targets. These local moves update server
 position and visibility with a capped step size; they do not synthesize client
-movement packets. `SAY` broadcasts normal map chat when policy allows it, while
-blocking command-like text. `LOOT` can pick nearby visible drops through the
-normal server pickup path when policy allows it, and successful pickups are
-written to `agent_economy_ledger`. The future-facing verbs `ATTACK`, `GRIND`,
-`NPC`, `SHOP`, `TRADE`, `PARTY`, `USEITEM`, and `EQUIP` are parsed and audited,
-but blocked until their dedicated systems are implemented.
+movement packets. Local movement records `MOVED`, `ALREADY_NEARBY`, `STUCK`, or
+`NO_PROGRESS` details so Agent CMS can show whether the bounded step actually
+reduced the remaining distance. `SAY` broadcasts normal map chat when policy
+allows it, while blocking command-like text. `LOOT` can pick nearby visible drops
+through the normal server pickup path when policy allows it, and successful
+pickups are written to `agent_economy_ledger`. The future-facing verbs `ATTACK`,
+`GRIND`, `NPC`, `SHOP`, `TRADE`, `PARTY`, `USEITEM`, and `EQUIP` are parsed and
+audited, but blocked until their dedicated systems are implemented.
 
 When an agent has no active goal, script fallback advances through parsed script
 lines using the current runtime session's previous `INTENT_PLAN` count as the
