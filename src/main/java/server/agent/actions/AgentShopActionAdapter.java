@@ -54,14 +54,11 @@ public final class AgentShopActionAdapter implements AgentActionAdapter {
                 return buyRecoveryItem(context, shopTarget);
             }
 
-            String state = isRecoveryTarget(context.intent().argument()) ? "RECOVERY_SHOP_READY" : "SHOP_READY";
             return AgentActionResult.ok(
                     capability(),
-                    state.equals("RECOVERY_SHOP_READY")
-                            ? "Shop " + shopTarget.shop().getId() + " at NPC " + npcLabel(npc) + " has recovery items ready for future purchase"
-                            : "Shop " + shopTarget.shop().getId() + " at NPC " + npcLabel(npc) + " is ready for future shop interaction",
+                    "Shop " + shopTarget.shop().getId() + " at NPC " + npcLabel(npc) + " is ready for future shop interaction",
                     false,
-                    shopDetailsJson(context, npc, shopTarget.shop(), state, null)
+                    shopDetailsJson(context, npc, shopTarget.shop(), "SHOP_READY", null)
             );
         }
 

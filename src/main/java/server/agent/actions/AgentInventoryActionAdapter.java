@@ -67,7 +67,7 @@ public final class AgentInventoryActionAdapter implements AgentActionAdapter {
                 type + " readiness found " + (itemName == null ? item.getItemId() : itemName)
                         + " in " + inventoryType + " slot " + item.getPosition(),
                 false,
-                inventoryDetailsJson(context, inventoryType, item, state, "Readiness only; item use/equip is intentionally not executed yet")
+                inventoryDetailsJson(context, inventoryType, item, state, "Readiness only; general item use is intentionally not executed yet")
         );
     }
 
