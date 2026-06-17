@@ -41,6 +41,12 @@ show why a goal is running, blocked by policy, waiting for cooldown, blocked by
 an unimplemented runtime adapter, completed, or failed without requiring a
 schema migration for each new diagnostic field.
 
+Each pilot tick also records a `TARGET_SCAN` memory event with the nearest
+player, monster, drop, NPC, and reactor from the current perception snapshot.
+This is read-only targeting groundwork: it gives Agent CMS and future behavior
+modules a consistent view of what the agent could interact with next without
+making combat, NPC, or reactor actions executable yet.
+
 ### `agent_scripts`
 
 Stores server-side scripts that Agent CMS can manage later.

@@ -169,6 +169,7 @@ public final class AgentRuntimeService {
         rememberCompanionRelationship(managed, intent, dispatchResult, perception);
         rememberLootEconomy(managed, intent, dispatchResult, perception);
         rememberOutboundChat(managed, intent, dispatchResult);
+        rememberTargetScan(managed, perception);
     }
 
     public void failSession(AgentRuntimeSession session, String reason) {
@@ -482,6 +483,63 @@ public final class AgentRuntimeService {
                 null,
                 message
         );
+    }
+
+    private void rememberTargetScan(AgentManagedCharacter managed, AgentPerceptionSnapshot perception) throws SQLException {
+        if (!perception.available()) {
+            return;
+        }
+
+        repository.remember(new AgentMemoryEvent(
+                managed.profileId(),
+                "TARGET_SCAN",
+                perception.monsters() > 0 || perception.drops() > 0 || perception.npcs() > 0 ? 3 : 1,
+                null,
+                null,
+                perception.mapId(),
+                "Nearest targets: "
+                        + targetLabel("monster", firstVisible(perception.nearbyMonsters())) + ", "
+                        + targetLabel("drop", firstVisible(perception.nearbyDrops())) + ", "
+                        + targetLabel("npc", firstVisible(perception.nearbyNpcs())),
+                "{"
+                        + "\"world\":" + perception.world() + ","
+                        + "\"channel\":" + perception.channel() + ","
+                        + "\"mapId\":" + perception.mapId() + ","
+                        + "\"position\":{\"x\":" + perception.x() + ",\"y\":" + perception.y() + "},"
+                        + "\"counts\":{"
+                        + "\"players\":" + perception.players() + ","
+                        + "\"monsters\":" + perception.monsters() + ","
+                        + "\"drops\":" + perception.drops() + ","
+                        + "\"npcs\":" + perception.npcs() + ","
+                        + "\"reactors\":" + perception.reactors()
+                        + "},"
+                        + "\"nearest\":{"
+                        + "\"player\":" + visibleObjectOrNull(firstVisible(perception.nearbyPlayers())) + ","
+                        + "\"monster\":" + visibleObjectOrNull(firstVisible(perception.nearbyMonsters())) + ","
+                        + "\"drop\":" + visibleObjectOrNull(firstVisible(perception.nearbyDrops())) + ","
+                        + "\"npc\":" + visibleObjectOrNull(firstVisible(perception.nearbyNpcs())) + ","
+                        + "\"reactor\":" + visibleObjectOrNull(firstVisible(perception.nearbyReactors()))
+                        + "}"
+                        + "}"
+        ));
+    }
+
+    private AgentPerceptionSnapshot.AgentVisibleObject firstVisible(List<AgentPerceptionSnapshot.AgentVisibleObject> objects) {
+        return objects == null || objects.isEmpty() ? null : objects.get(0);
+    }
+
+    private String visibleObjectOrNull(AgentPerceptionSnapshot.AgentVisibleObject object) {
+        return object == null ? "null" : visibleObjectJson(object);
+    }
+
+    private String targetLabel(String label, AgentPerceptionSnapshot.AgentVisibleObject object) {
+        if (object == null) {
+            return label + " none";
+        }
+        String name = object.name() == null || object.name().isBlank()
+                ? String.valueOf(object.templateId() == null ? object.objectId() : object.templateId())
+                : object.name();
+        return label + " " + name + " at " + object.distanceSq();
     }
 
     private Integer extractLocatedTargetId(String detailsJson) {
