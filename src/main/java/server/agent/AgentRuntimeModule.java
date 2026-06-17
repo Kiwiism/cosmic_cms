@@ -24,6 +24,7 @@ public final class AgentRuntimeModule implements RuntimeModule {
     private final AgentScriptRunner scriptRunner;
     private final AgentScriptRepository scriptRepository;
     private final AgentGoalRepository goalRepository;
+    private final AgentNavigationGraphService navigationGraphService;
     private final AgentPlannerService plannerService;
     private final AgentGoalProgressEvaluator goalProgressEvaluator;
     private final AgentPolicyRepository policyRepository;
@@ -46,7 +47,8 @@ public final class AgentRuntimeModule implements RuntimeModule {
         this.scriptRunner = new AgentScriptRunner();
         this.scriptRepository = new AgentScriptRepository();
         this.goalRepository = new AgentGoalRepository();
-        this.plannerService = new AgentPlannerService(goalRepository, scriptRunner, scriptRepository);
+        this.navigationGraphService = new AgentNavigationGraphService();
+        this.plannerService = new AgentPlannerService(goalRepository, scriptRunner, scriptRepository, navigationGraphService);
         this.goalProgressEvaluator = new AgentGoalProgressEvaluator();
         this.policyRepository = new AgentPolicyRepository();
         this.intentPolicyService = new AgentIntentPolicyService(policyRepository);

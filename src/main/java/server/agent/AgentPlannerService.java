@@ -9,15 +9,18 @@ public final class AgentPlannerService {
     private final AgentGoalRepository goalRepository;
     private final AgentScriptRunner scriptRunner;
     private final AgentScriptRepository scriptRepository;
+    private final AgentNavigationGraphService navigationGraphService;
 
     public AgentPlannerService(
             AgentGoalRepository goalRepository,
             AgentScriptRunner scriptRunner,
-            AgentScriptRepository scriptRepository
+            AgentScriptRepository scriptRepository,
+            AgentNavigationGraphService navigationGraphService
     ) {
         this.goalRepository = goalRepository;
         this.scriptRunner = scriptRunner;
         this.scriptRepository = scriptRepository;
+        this.navigationGraphService = navigationGraphService;
     }
 
     public AgentPlan plan(AgentManagedCharacter managed, AgentPerceptionSnapshot perception, AgentKnowledgeSnapshot knowledge) throws SQLException {
@@ -47,7 +50,8 @@ public final class AgentPlannerService {
             default -> AgentIntent.waitFor(1000);
         };
         String reason = "Selected goal #" + goal.id() + " (" + goal.goalType() + ") at priority " + goal.priority()
-                + " for level " + knowledge.level() + " job " + knowledge.jobId();
+                + " for level " + knowledge.level() + " job " + knowledge.jobId()
+                + routeReason(goal, perception);
         return new AgentPlan(intent, goal, "agent_goals:" + goal.id(), reason);
     }
 
@@ -70,6 +74,38 @@ public final class AgentPlannerService {
                 .findFirst()
                 .map(drop -> drop.templateId() == null ? "meso" : String.valueOf(drop.templateId()))
                 .orElse("nearest drop");
+    }
+
+    private String routeReason(AgentGoal goal, AgentPerceptionSnapshot perception) {
+        if (goal.targetMap() == null || perception == null || !perception.available()) {
+            return "";
+        }
+
+        String goalType = goal.goalType() == null ? "" : goal.goalType().trim().toUpperCase(Locale.ROOT);
+        if (!List.of("MOVE", "MOVE_TO_MAP", "TRAVEL").contains(goalType)) {
+            return "";
+        }
+
+        try {
+            AgentNavigationRoute route = navigationGraphService.findLoadedRoute(
+                    perception.world(),
+                    perception.channel(),
+                    perception.mapId(),
+                    goal.targetMap()
+            );
+            if (!route.found()) {
+                return "; route preview unavailable: " + route.message();
+            }
+            if (route.steps().isEmpty()) {
+                return "; route preview: already on target map";
+            }
+
+            AgentPortalEdge nextStep = route.steps().get(0);
+            return "; route preview: " + route.steps().size() + " loaded portal step(s), next portal "
+                    + nextStep.portalName() + " -> map " + nextStep.toMapId();
+        } catch (RuntimeException e) {
+            return "; route preview failed safely: " + e.getClass().getSimpleName();
+        }
     }
 
     private ScriptBody resolveScriptBody(AgentProfile profile) throws SQLException {
