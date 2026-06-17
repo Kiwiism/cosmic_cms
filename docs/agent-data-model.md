@@ -91,9 +91,12 @@ aliases such as `hp`, `mp`, and `potion`, then record `ITEM_READY`,
 `EQUIP_READY`, `NO_ITEM`, or `NO_EQUIP`; they do not consume items or equip gear
 yet. `SKILL` and `CAST` can inspect learned skills, resolve a skill by id or
 generic aliases such as `attack`, `buff`, `active`, and `passive`, then record
-`SKILL_READY` or `NO_SKILL`; they do not cast skills yet. The future-facing
-verbs `TRADE` and `PARTY` are parsed and audited, but blocked until their
-dedicated systems are implemented.
+`SKILL_READY` or `NO_SKILL`; they do not cast skills yet. `PARTY` can inspect
+the agent's current party plus visible nearby player targets and records
+`PARTY_STATUS`, `PARTY_TARGET_READY`, `INVITE_TARGET_READY`, `ALREADY_PARTIED`,
+`PARTY_FULL`, or `NO_PARTY_TARGET`; it does not create, invite, join, leave, or
+expel party members yet. The future-facing verb `TRADE` is parsed and audited,
+but blocked until its dedicated system is implemented.
 
 When an agent has no active goal, script fallback advances through parsed script
 lines using the current runtime session's previous `INTENT_PLAN` count as the
