@@ -53,6 +53,10 @@ public final class AgentRuntimeService {
         repository.heartbeat(session.id(), task);
     }
 
+    public void updateSessionLocation(AgentRuntimeSession session, int world, int channel, int mapId, String task) throws SQLException {
+        repository.updateSessionLocation(session.id(), world, channel, mapId, task);
+    }
+
     public void stopSession(AgentRuntimeSession session, String reason) {
         try {
             repository.endSession(session.id(), AgentRuntimeState.STOPPED, reason);

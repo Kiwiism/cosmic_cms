@@ -83,6 +83,22 @@ public final class AgentRuntimeRepository {
         }
     }
 
+    public void updateSessionLocation(long sessionId, int world, int channel, int mapId, String currentTask) throws SQLException {
+        try (Connection connection = DatabaseConnection.getConnection();
+             PreparedStatement statement = connection.prepareStatement("""
+                     UPDATE agent_runtime_sessions
+                     SET world = ?, channel = ?, map_id = ?, current_task = ?, last_tick_at = CURRENT_TIMESTAMP
+                     WHERE id = ? AND ended_at IS NULL
+                     """)) {
+            statement.setInt(1, world);
+            statement.setInt(2, channel);
+            statement.setInt(3, mapId);
+            statement.setString(4, currentTask);
+            statement.setLong(5, sessionId);
+            statement.executeUpdate();
+        }
+    }
+
     public void endSession(long sessionId, AgentRuntimeState state, String stopReason) throws SQLException {
         try (Connection connection = DatabaseConnection.getConnection();
              PreparedStatement statement = connection.prepareStatement("""

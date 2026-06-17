@@ -11,8 +11,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Lightweight scheduler for agent pilot ticks.
  *
- * The scheduler never spawns agents by itself. It only dry-run ticks characters
- * that have already been explicitly entered through AgentSpawnCoordinator.
+ * The scheduler never spawns agents by itself. It only ticks characters that
+ * have already been explicitly entered through AgentSpawnCoordinator.
  */
 public final class AgentTickScheduler {
     private static final Logger log = LoggerFactory.getLogger(AgentTickScheduler.class);
@@ -59,7 +59,7 @@ public final class AgentTickScheduler {
             for (AgentManagedCharacter managed : agents) {
                 try {
                     AgentPilotTickResult result = pilotService.dryRunTick(managed);
-                    log.debug("Agent profile {} dry-run tick planned {} with dispatch {}",
+                    log.debug("Agent profile {} tick planned {} with dispatch {}",
                             managed.profileId(), result.intent().type(), result.dispatchResult().status());
                 } catch (Exception e) {
                     log.warn("Agent profile {} dry-run tick failed", managed.profileId(), e);

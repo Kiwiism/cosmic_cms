@@ -4,11 +4,11 @@ import java.sql.SQLException;
 import java.time.Instant;
 
 /**
- * Dry-run pilot boundary for future agent control.
+ * Pilot boundary for agent control.
  *
  * This service reads perception and script data, chooses the next intent, and
- * logs that decision. It deliberately does not move, chat, attack, trade, loot,
- * or call gameplay handlers.
+ * logs that decision. Gameplay-facing adapters remain capability-gated; only
+ * adapters that are explicitly implemented may mutate server state.
  */
 public final class AgentPilotService {
     static final String INLINE_SCRIPT_PREFIX = "inline:";

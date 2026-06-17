@@ -50,6 +50,15 @@ public final class AgentIntentDispatcher {
         }
 
         AgentIntentDispatchResult result = AgentIntentDispatchResult.fromActionResult(intent, actionResult);
+        if (result.gameplayMutated()) {
+            runtimeService.updateSessionLocation(
+                    managed.session(),
+                    managed.client().getWorld(),
+                    managed.client().getChannel(),
+                    managed.character().getMapId(),
+                    "Gameplay action moved agent through " + intent.type()
+            );
+        }
         runtimeService.logDispatchedIntent(managed, intent, perception, scriptSource, result);
         return result;
     }

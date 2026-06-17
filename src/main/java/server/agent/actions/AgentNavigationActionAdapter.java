@@ -1,5 +1,6 @@
 package server.agent.actions;
 
+import constants.id.MapId;
 import server.agent.AgentCharacterLocationLookup;
 import server.agent.AgentIntentCapability;
 import server.agent.AgentIntentType;
@@ -7,7 +8,10 @@ import server.agent.AgentNavigationGraphService;
 import server.agent.AgentNavigationRoute;
 import server.agent.AgentPerceptionSnapshot;
 import server.agent.AgentPortalEdge;
+import server.maps.MapleMap;
+import server.maps.Portal;
 
+import java.awt.Point;
 import java.util.Optional;
 
 public final class AgentNavigationActionAdapter implements AgentActionAdapter {
@@ -35,6 +39,9 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         }
         if (type == AgentIntentType.FOLLOW_CHARACTER) {
             return previewFollowCharacter(context);
+        }
+        if (type == AgentIntentType.USE_PORTAL) {
+            return executeNamedPortal(context);
         }
         return AgentActionResult.blockedByRuntime(capability(),
                 type + " reached the navigation adapter, but movement execution is not implemented yet");
@@ -65,11 +72,7 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
         }
 
         AgentPortalEdge next = route.steps().get(0);
-        return AgentActionResult.blockedByRuntime(capability(),
-                "Navigation preview found " + route.steps().size() + " loaded portal step(s); next "
-                        + next.portalName() + " -> map " + next.toMapId()
-                        + ". Gameplay movement remains disabled until the movement adapter is implemented.",
-                routeDetailsJson(route, proposedPortalAction(route.steps().get(0))));
+        return executePortalStep(context, route, next, "MOVE_TO_MAP");
     }
 
     private AgentActionResult previewFollowCharacter(AgentActionContext context) {
@@ -96,6 +99,9 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
             }
 
             AgentNavigationRoute route = routeToLocatedTarget(context, located.get());
+            if (route != null && route.found() && !route.steps().isEmpty()) {
+                return executePortalStep(context, route, route.steps().get(0), "FOLLOW_CHARACTER");
+            }
             String message = followLocationMessage(target, located.get(), route);
             return AgentActionResult.blockedByRuntime(
                     capability(),
@@ -110,6 +116,118 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                         + ". Gameplay movement remains disabled until the movement adapter is implemented.",
                 false,
                 followDetailsJson(context, target, matched, located.orElse(null), null, "TARGET_VISIBLE", proposedApproachAction(context, matched))
+        );
+    }
+
+    private AgentActionResult executeNamedPortal(AgentActionContext context) {
+        String portalName = context.intent().argument();
+        if (portalName == null || portalName.isBlank()) {
+            return AgentActionResult.blockedByRuntime(capability(), "USE_PORTAL requires a portal name");
+        }
+        MapleMap currentMap = currentMap(context);
+        if (currentMap == null) {
+            return AgentActionResult.blockedByRuntime(capability(), "Cannot use portal without an attached map");
+        }
+        Portal portal = currentMap.getPortal(portalName.trim());
+        if (portal == null) {
+            return AgentActionResult.blockedByRuntime(capability(), "Portal '" + portalName + "' was not found on map " + currentMap.getId());
+        }
+        return executePortal(context, currentMap, portal, "USE_PORTAL", null);
+    }
+
+    private AgentActionResult executePortalStep(
+            AgentActionContext context,
+            AgentNavigationRoute route,
+            AgentPortalEdge next,
+            String reason
+    ) {
+        MapleMap currentMap = currentMap(context);
+        if (currentMap == null) {
+            return AgentActionResult.blockedByRuntime(capability(), "Cannot execute route without an attached map",
+                    routeDetailsJson(route, proposedPortalAction(next, false, "Agent character is not attached to a map")));
+        }
+        if (currentMap.getId() != next.fromMapId()) {
+            return AgentActionResult.blockedByRuntime(capability(),
+                    "Route is stale: agent is on map " + currentMap.getId() + " but next portal starts from " + next.fromMapId(),
+                    routeDetailsJson(route, proposedPortalAction(next, false, "Route is stale")));
+        }
+        Portal portal = currentMap.getPortal(next.portalName());
+        if (portal == null) {
+            return AgentActionResult.blockedByRuntime(capability(),
+                    "Route portal '" + next.portalName() + "' no longer exists on map " + currentMap.getId(),
+                    routeDetailsJson(route, proposedPortalAction(next, false, "Portal is missing")));
+        }
+        return executePortal(context, currentMap, portal, reason, route);
+    }
+
+    private AgentActionResult executePortal(
+            AgentActionContext context,
+            MapleMap currentMap,
+            Portal portal,
+            String reason,
+            AgentNavigationRoute route
+    ) {
+        if (!isSafeTraversalPortal(portal)) {
+            String details = route == null
+                    ? portalDetailsJson(context, currentMap, portal, false, "Portal is closed, scripted, or not a normal map traversal portal")
+                    : routeDetailsJson(route, proposedPortalAction(portalEdge(currentMap, portal), false,
+                    "Portal is closed, scripted, or not a normal map traversal portal"));
+            return AgentActionResult.blockedByRuntime(capability(),
+                    "Portal '" + portal.getName() + "' is not safe for agent movement execution", details);
+        }
+
+        int beforeMapId = currentMap.getId();
+        AgentPortalEdge edge = portalEdge(currentMap, portal);
+        portal.enterPortal(context.managed().client());
+        MapleMap afterMap = currentMap(context);
+        int afterMapId = afterMap == null ? context.managed().character().getMapId() : afterMap.getId();
+        boolean changed = afterMapId != beforeMapId;
+        if (!changed) {
+            String details = route == null
+                    ? portalDetailsJson(context, currentMap, portal, false, "Portal execution returned without changing maps")
+                    : routeDetailsJson(route, proposedPortalAction(edge, false, "Portal execution returned without changing maps"));
+            return AgentActionResult.blockedByRuntime(capability(),
+                    "Portal '" + portal.getName() + "' did not move the agent", details);
+        }
+
+        String actionJson = proposedPortalAction(edge, true, "Executed by agent navigation adapter");
+        String details = route == null
+                ? portalDetailsJson(context, currentMap, portal, true, "Executed by agent navigation adapter")
+                : routeDetailsJson(route, actionJson);
+        return AgentActionResult.ok(capability(),
+                reason + " used portal " + portal.getName() + " from map " + beforeMapId + " to " + afterMapId,
+                true,
+                addResultMap(details, beforeMapId, afterMapId));
+    }
+
+    private MapleMap currentMap(AgentActionContext context) {
+        return context.managed().character() == null ? null : context.managed().character().getMap();
+    }
+
+    private boolean isSafeTraversalPortal(Portal portal) {
+        return portal.getPortalStatus()
+                && (portal.getType() == Portal.MAP_PORTAL || portal.getType() == Portal.TELEPORT_PORTAL)
+                && portal.getTargetMapId() != MapId.NONE
+                && portal.getTargetMapId() >= 0
+                && (portal.getScriptName() == null || portal.getScriptName().isBlank());
+    }
+
+    private AgentPortalEdge portalEdge(MapleMap currentMap, Portal portal) {
+        Point position = portal.getPosition();
+        return new AgentPortalEdge(
+                0,
+                0,
+                currentMap.getId(),
+                currentMap.getMapName(),
+                portal.getId(),
+                portal.getName(),
+                portal.getType(),
+                position == null ? 0 : position.x,
+                position == null ? 0 : position.y,
+                portal.getTargetMapId(),
+                portal.getTarget(),
+                portal.getPortalStatus(),
+                portal.getScriptName() != null && !portal.getScriptName().isBlank()
         );
     }
 
@@ -244,15 +362,43 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
     }
 
     private String proposedPortalAction(AgentPortalEdge next) {
+        return proposedPortalAction(next, false, "Movement execution is disabled; this is a dry-run proposal only");
+    }
+
+    private String proposedPortalAction(AgentPortalEdge next, boolean executable, String reason) {
         return "{"
                 + "\"type\":\"USE_PORTAL\","
-                + "\"executable\":false,"
-                + "\"reason\":\"Movement execution is disabled; this is a dry-run proposal only\","
+                + "\"executable\":" + executable + ","
+                + "\"reason\":\"" + escapeJson(reason) + "\","
                 + "\"portalName\":\"" + escapeJson(next.portalName()) + "\","
                 + "\"fromMapId\":" + next.fromMapId() + ","
                 + "\"toMapId\":" + next.toMapId() + ","
                 + "\"position\":{\"x\":" + next.x() + ",\"y\":" + next.y() + "}"
                 + "}";
+    }
+
+    private String portalDetailsJson(AgentActionContext context, MapleMap currentMap, Portal portal, boolean executable, String reason) {
+        return "{"
+                + "\"routeState\":\"DIRECT_PORTAL\","
+                + "\"world\":" + context.managed().client().getWorld() + ","
+                + "\"channel\":" + context.managed().client().getChannel() + ","
+                + "\"fromMapId\":" + currentMap.getId() + ","
+                + "\"toMapId\":" + portal.getTargetMapId() + ","
+                + "\"found\":true,"
+                + "\"message\":\"Direct portal execution\","
+                + "\"stepCount\":1,"
+                + "\"nextStep\":" + edgeJson(portalEdge(currentMap, portal)) + ","
+                + "\"proposedAction\":" + proposedPortalAction(portalEdge(currentMap, portal), executable, reason) + ","
+                + "\"steps\":[" + edgeJson(portalEdge(currentMap, portal)) + "]"
+                + "}";
+    }
+
+    private String addResultMap(String json, int beforeMapId, int afterMapId) {
+        if (json == null || json.length() < 2 || !json.endsWith("}")) {
+            return json;
+        }
+        return json.substring(0, json.length() - 1)
+                + ",\"result\":{\"beforeMapId\":" + beforeMapId + ",\"afterMapId\":" + afterMapId + "}}";
     }
 
     private String proposedLocateAction(String target) {
