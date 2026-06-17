@@ -742,6 +742,9 @@ public class AgentController {
     List<Map<String, Object>> runtimeSessions(@RequestParam(defaultValue = "") String q) {
         return gameJdbc.queryForList("""
                 SELECT s.*, p.display_name, c.name character_name, a.name account_name,
+                       TIMESTAMPDIFF(SECOND, COALESCE(s.last_tick_at, s.started_at), NOW()) AS seconds_since_tick,
+                       safety.summary AS latest_safety_summary,
+                       safety.created_at AS latest_safety_at,
                        CASE
                            WHEN s.ended_at IS NULL
                             AND COALESCE(s.last_tick_at, s.started_at) < DATE_SUB(NOW(), INTERVAL 2 MINUTE)
@@ -751,6 +754,14 @@ public class AgentController {
                 JOIN agent_profiles p ON p.id = s.agent_profile_id
                 JOIN characters c ON c.id = s.character_id
                 JOIN accounts a ON a.id = c.accountid
+                LEFT JOIN agent_memory_events safety ON safety.id = (
+                    SELECT m.id
+                    FROM agent_memory_events m
+                    WHERE m.agent_profile_id = p.id
+                      AND m.event_type = 'SAFETY_CHECK'
+                    ORDER BY m.id DESC
+                    LIMIT 1
+                )
                 WHERE c.name LIKE ? OR a.name LIKE ? OR p.display_name LIKE ?
                    OR s.state LIKE ? OR s.current_task LIKE ?
                 ORDER BY s.id DESC
@@ -825,6 +836,15 @@ public class AgentController {
                 FROM agent_action_logs
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                 """));
+        summary.put("safety24h", oneSummary("""
+                SELECT
+                    COUNT(*) AS safety_warnings,
+                    COUNT(DISTINCT agent_profile_id) AS affected_agents,
+                    MAX(created_at) AS latest_safety_at
+                FROM agent_memory_events
+                WHERE event_type = 'SAFETY_CHECK'
+                  AND created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+                """));
         summary.put("latestProblems", gameJdbc.queryForList("""
                 SELECT l.*, p.display_name, c.name character_name
                 FROM agent_action_logs l
@@ -832,6 +852,15 @@ public class AgentController {
                 JOIN characters c ON c.id = p.character_id
                 WHERE l.status IN ('BLOCKED', 'FAILED')
                 ORDER BY l.id DESC
+                LIMIT 10
+                """));
+        summary.put("latestSafety", gameJdbc.queryForList("""
+                SELECT m.*, p.display_name, c.name character_name
+                FROM agent_memory_events m
+                JOIN agent_profiles p ON p.id = m.agent_profile_id
+                JOIN characters c ON c.id = p.character_id
+                WHERE m.event_type = 'SAFETY_CHECK'
+                ORDER BY m.id DESC
                 LIMIT 10
                 """));
         return summary;

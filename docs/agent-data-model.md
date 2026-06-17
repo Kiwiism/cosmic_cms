@@ -164,9 +164,11 @@ override and returns that policy to the built-in server default.
 
 The Agent CMS runtime page also exposes a lightweight summary endpoint for
 operational checks: open sessions, stale sessions, 24-hour action status counts,
-cooldown blocks, and the latest blocked or failed actions. This is intentionally
-read-only and uses existing runtime tables so it can be expanded without adding
-new server coupling.
+cooldown blocks, safety-warning counts, the latest blocked or failed actions,
+and the latest safety diagnostics. Session rows include heartbeat age and the
+most recent safety warning for that agent. This is intentionally read-only and
+uses existing runtime tables so it can be expanded without adding new server
+coupling.
 
 Agent CMS can mark stale open runtime sessions as stopped. The recovery action
 only applies to sessions with no heartbeat for more than two minutes, so it is
