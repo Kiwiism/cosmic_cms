@@ -697,17 +697,45 @@ public class AgentController {
         return after;
     }
 
-    @PostMapping("/{id}/runtime/{action}")
+    @PostMapping("/{id}/runtime/{action:prepare|enter|tick|release}")
     Map<String, Object> runtimeAction(@PathVariable int id, @PathVariable String action, Principal principal) {
-        if (!List.of("prepare", "enter", "tick", "release").contains(action)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Unknown agent runtime action");
-        }
-
         Map<String, Object> before = agent(id);
         Map<String, Object> result = bridge.agentAction(id, action);
         audit(principal, "AGENT_RUNTIME_" + action.toUpperCase(), "agent:" + id, before, result,
                 "Manual agent runtime action through Agent CMS");
         return result;
+    }
+
+    @PostMapping("/{id}/runtime/smoke-test")
+    Map<String, Object> runtimeSmokeTest(@PathVariable int id, Principal principal) {
+        Map<String, Object> before = agent(id);
+        List<String> actions = List.of("prepare", "enter", "tick");
+        List<Map<String, Object>> steps = new ArrayList<>();
+        boolean completed = true;
+        String stoppedAt = null;
+        for (String action : actions) {
+            Map<String, Object> result = bridge.agentAction(id, action);
+            Map<String, Object> step = new LinkedHashMap<>();
+            step.put("action", action);
+            step.put("result", result);
+            step.put("ok", bridgeStepSucceeded(action, result));
+            steps.add(step);
+            if (!bridgeStepSucceeded(action, result)) {
+                completed = false;
+                stoppedAt = action;
+                break;
+            }
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("status", completed ? "COMPLETED" : "STOPPED");
+        response.put("completed", completed);
+        response.put("stoppedAt", stoppedAt);
+        response.put("profileId", id);
+        response.put("steps", steps);
+        audit(principal, "AGENT_RUNTIME_SMOKE_TEST", "agent:" + id, before, response,
+                "Prepare, enter and tick smoke test through Agent CMS");
+        return response;
     }
 
     @GetMapping("/runtime/sessions")
@@ -1048,6 +1076,19 @@ public class AgentController {
 
     private boolean futureGatedIntent(String intent) {
         return List.of("UNKNOWN").contains(intent);
+    }
+
+    private boolean bridgeStepSucceeded(String action, Map<String, Object> result) {
+        if (result == null || result.containsKey("error") || "OFFLINE".equals(String.valueOf(result.get("status")))) {
+            return false;
+        }
+        if ("prepare".equals(action) || "enter".equals(action)) {
+            return Boolean.TRUE.equals(result.get("accepted"));
+        }
+        if ("tick".equals(action)) {
+            return result.containsKey("dispatchStatus");
+        }
+        return true;
     }
 
     private String warningForIntent(String intent) {

@@ -127,6 +127,12 @@ event so Agent CMS can show the warning without interrupting the agent or
 mutating gameplay. This gives staff enough evidence to tune policies, cooldowns,
 or goals before stricter automatic release/rollback behavior is enabled.
 
+Agent CMS also exposes a smoke-test action for selected agents. It calls the
+same bridge actions as the manual controls in order: `prepare`, `enter`, then
+`tick`. The sequence stops at the first bridge failure and records each step in
+the response. It does not auto-release the agent afterward, so staff can inspect
+the entered character, run more ticks, or release manually.
+
 Agent scripts also support lightweight control syntax for simple behavior
 loops:
 
