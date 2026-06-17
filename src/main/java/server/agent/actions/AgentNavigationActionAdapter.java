@@ -1,5 +1,6 @@
 package server.agent.actions;
 
+import server.agent.AgentCharacterLocationLookup;
 import server.agent.AgentIntentCapability;
 import server.agent.AgentIntentType;
 import server.agent.AgentNavigationGraphService;
@@ -7,11 +8,18 @@ import server.agent.AgentNavigationRoute;
 import server.agent.AgentPerceptionSnapshot;
 import server.agent.AgentPortalEdge;
 
+import java.util.Optional;
+
 public final class AgentNavigationActionAdapter implements AgentActionAdapter {
     private final AgentNavigationGraphService navigationGraphService;
+    private final AgentCharacterLocationLookup characterLocationLookup;
 
-    public AgentNavigationActionAdapter(AgentNavigationGraphService navigationGraphService) {
+    public AgentNavigationActionAdapter(
+            AgentNavigationGraphService navigationGraphService,
+            AgentCharacterLocationLookup characterLocationLookup
+    ) {
         this.navigationGraphService = navigationGraphService;
+        this.characterLocationLookup = characterLocationLookup;
     }
 
     @Override
@@ -77,11 +85,22 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 .filter(player -> matchesCharacter(player, target))
                 .findFirst()
                 .orElse(null);
+        Optional<AgentCharacterLocationLookup.LocatedCharacter> located = characterLocationLookup.find(target);
         if (matched == null) {
+            if (located.isEmpty()) {
+                return AgentActionResult.blockedByRuntime(
+                        capability(),
+                        "Follow target '" + target + "' is not visible and could not be found in online storage or character records.",
+                        followDetailsJson(context, target, null, null, null, "TARGET_UNKNOWN")
+                );
+            }
+
+            AgentNavigationRoute route = routeToLocatedTarget(context, located.get());
+            String message = followLocationMessage(target, located.get(), route);
             return AgentActionResult.blockedByRuntime(
                     capability(),
-                    "Follow target '" + target + "' is not visible on the current map. Future movement will need locate-and-route support.",
-                    followDetailsJson(context, target, null, "TARGET_NOT_VISIBLE")
+                    message,
+                    followDetailsJson(context, target, null, located.get(), route, "TARGET_LOCATED")
             );
         }
 
@@ -90,8 +109,47 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 "Follow target " + matched.name() + " is visible at distanceSq " + matched.distanceSq()
                         + ". Gameplay movement remains disabled until the movement adapter is implemented.",
                 false,
-                followDetailsJson(context, target, matched, "TARGET_VISIBLE")
+                followDetailsJson(context, target, matched, located.orElse(null), null, "TARGET_VISIBLE")
         );
+    }
+
+    private AgentNavigationRoute routeToLocatedTarget(
+            AgentActionContext context,
+            AgentCharacterLocationLookup.LocatedCharacter located
+    ) {
+        if (located.world() != context.perception().world() || located.channel() != context.perception().channel()) {
+            return null;
+        }
+        return navigationGraphService.findLoadedRoute(
+                context.perception().world(),
+                context.perception().channel(),
+                context.perception().mapId(),
+                located.mapId()
+        );
+    }
+
+    private String followLocationMessage(
+            String target,
+            AgentCharacterLocationLookup.LocatedCharacter located,
+            AgentNavigationRoute route
+    ) {
+        if (route == null) {
+            return "Follow target '" + target + "' located at world " + located.world()
+                    + ", channel " + located.channel() + ", map " + located.mapId()
+                    + ". Cross-world/channel routing is not implemented yet.";
+        }
+        if (!route.found()) {
+            return "Follow target '" + target + "' located at map " + located.mapId()
+                    + ", but route preview is unavailable: " + route.message();
+        }
+        if (route.steps().isEmpty()) {
+            return "Follow target '" + target + "' is on this map but not visible in the nearby snapshot.";
+        }
+        AgentPortalEdge next = route.steps().get(0);
+        return "Follow target '" + target + "' located at map " + located.mapId()
+                + ". Route preview has " + route.steps().size() + " loaded step(s); next "
+                + next.portalName() + " -> map " + next.toMapId()
+                + ". Gameplay movement remains disabled until the movement adapter is implemented.";
     }
 
     private boolean matchesCharacter(AgentPerceptionSnapshot.AgentVisibleObject player, String target) {
@@ -160,6 +218,8 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
             AgentActionContext context,
             String requestedTarget,
             AgentPerceptionSnapshot.AgentVisibleObject matched,
+            AgentCharacterLocationLookup.LocatedCharacter located,
+            AgentNavigationRoute route,
             String state
     ) {
         return "{"
@@ -170,7 +230,9 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 + "\"agentPosition\":{\"x\":" + context.perception().x() + ",\"y\":" + context.perception().y() + "},"
                 + "\"requestedTarget\":\"" + escapeJson(requestedTarget) + "\","
                 + "\"visiblePlayers\":" + context.perception().nearbyPlayers().size() + ","
-                + "\"target\":" + (matched == null ? "null" : visiblePlayerJson(matched))
+                + "\"target\":" + (matched == null ? "null" : visiblePlayerJson(matched)) + ","
+                + "\"locatedTarget\":" + (located == null ? "null" : locatedJson(located)) + ","
+                + "\"route\":" + (route == null ? "null" : routeDetailsJson(route))
                 + "}";
     }
 
@@ -182,6 +244,18 @@ public final class AgentNavigationActionAdapter implements AgentActionAdapter {
                 + "\"level\":" + nullableNumber(player.level()) + ","
                 + "\"position\":{\"x\":" + player.x() + ",\"y\":" + player.y() + "},"
                 + "\"distanceSq\":" + player.distanceSq()
+                + "}";
+    }
+
+    private String locatedJson(AgentCharacterLocationLookup.LocatedCharacter located) {
+        return "{"
+                + "\"characterId\":" + located.characterId() + ","
+                + "\"name\":\"" + escapeJson(located.name()) + "\","
+                + "\"world\":" + located.world() + ","
+                + "\"channel\":" + located.channel() + ","
+                + "\"mapId\":" + located.mapId() + ","
+                + "\"position\":{\"x\":" + located.x() + ",\"y\":" + located.y() + "},"
+                + "\"online\":" + located.online()
                 + "}";
     }
 

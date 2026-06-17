@@ -1,6 +1,7 @@
 package server.agent.actions;
 
 import server.agent.AgentIntentCapability;
+import server.agent.AgentCharacterLocationLookup;
 import server.agent.AgentNavigationGraphService;
 
 import java.util.EnumMap;
@@ -9,9 +10,9 @@ import java.util.Map;
 public final class AgentActionService {
     private final Map<AgentIntentCapability, AgentActionAdapter> adapters = new EnumMap<>(AgentIntentCapability.class);
 
-    public AgentActionService(AgentNavigationGraphService navigationGraphService) {
+    public AgentActionService(AgentNavigationGraphService navigationGraphService, AgentCharacterLocationLookup characterLocationLookup) {
         register(new AgentSelfActionAdapter());
-        register(new AgentNavigationActionAdapter(navigationGraphService));
+        register(new AgentNavigationActionAdapter(navigationGraphService, characterLocationLookup));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.CHAT, "Chat"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.COMBAT, "Combat"));
         register(new AgentRuntimeBlockedActionAdapter(AgentIntentCapability.LOOT, "Loot"));
