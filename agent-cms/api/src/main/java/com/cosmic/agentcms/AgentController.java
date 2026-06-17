@@ -28,9 +28,9 @@ public class AgentController {
             new AgentCapabilityPolicy("intent.self.enabled", "Self timing", "Allows no-op IDLE and WAIT runtime intents.", true),
             new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows SAY intents to broadcast normal map chat.", false),
             new AgentCapabilityPolicy("intent.navigation.enabled", "Navigation", "Allows ROAM, MOVE, MAP, FOLLOW and PORTAL intents to pass the policy gate.", false),
-            new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows future ATTACK and GRIND intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows ATTACK and GRIND intents to approach and basic-attack non-boss monsters.", false),
             new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows nearby visible drop pickup through normal server pickup rules.", false),
-            new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows future NPC/TALK intents to pass the policy gate.", false),
+            new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows NPC/TALK intents to approach visible NPCs and record readiness. Dialog scripts are not opened yet.", false),
             new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows future SHOP/MERCHANT intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.trade.enabled", "Trade", "Allows future TRADE intents to pass the policy gate.", false),
             new AgentCapabilityPolicy("intent.party.enabled", "Party", "Allows future PARTY intents to pass the policy gate.", false),
@@ -41,9 +41,9 @@ public class AgentController {
             new AgentCooldownPolicy("cooldown.self.millis", "Self capability", "Default pacing for IDLE and WAIT no-op intents.", 0),
             new AgentCooldownPolicy("cooldown.chat.millis", "Chat capability", "Default pacing for chat intents.", 10_000),
             new AgentCooldownPolicy("cooldown.navigation.millis", "Navigation capability", "Default pacing for route, movement and portal intents.", 1_000),
-            new AgentCooldownPolicy("cooldown.combat.millis", "Combat capability", "Default pacing for future attack and grind intents.", 1_000),
+            new AgentCooldownPolicy("cooldown.combat.millis", "Combat capability", "Default pacing for attack and grind intents.", 1_000),
             new AgentCooldownPolicy("cooldown.loot.millis", "Loot capability", "Default pacing for nearby pickup attempts.", 750),
-            new AgentCooldownPolicy("cooldown.npc.millis", "NPC capability", "Default pacing for future NPC interaction intents.", 2_000),
+            new AgentCooldownPolicy("cooldown.npc.millis", "NPC capability", "Default pacing for NPC approach and readiness intents.", 2_000),
             new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for future shop interaction intents.", 2_000),
             new AgentCooldownPolicy("cooldown.trade.millis", "Trade capability", "Default pacing for future trade intents.", 5_000),
             new AgentCooldownPolicy("cooldown.party.millis", "Party capability", "Default pacing for future party intents.", 3_000),
@@ -1036,7 +1036,7 @@ public class AgentController {
     }
 
     private boolean futureGatedIntent(String intent) {
-        return List.of("ATTACK", "GRIND", "NPC", "SHOP", "TRADE", "PARTY", "USE_ITEM", "EQUIP", "UNKNOWN").contains(intent);
+        return List.of("SHOP", "TRADE", "PARTY", "USE_ITEM", "EQUIP", "UNKNOWN").contains(intent);
     }
 
     private String warningForIntent(String intent) {
@@ -1046,7 +1046,7 @@ public class AgentController {
         if (futureGatedIntent(intent)) {
             return "Parsed, but this intent still needs a dedicated runtime adapter before it can affect gameplay.";
         }
-        if (List.of("SAY", "ROAM", "MOVE", "MOVE_TO_MAP", "FOLLOW_CHARACTER", "USE_PORTAL", "LOOT").contains(intent)) {
+        if (List.of("SAY", "ROAM", "MOVE", "MOVE_TO_MAP", "FOLLOW_CHARACTER", "USE_PORTAL", "LOOT", "ATTACK", "GRIND", "NPC").contains(intent)) {
             return "Parsed. Execution still depends on the agent capability policy and cooldown settings.";
         }
         return "Parsed and supported by the current no-op/self runtime.";
