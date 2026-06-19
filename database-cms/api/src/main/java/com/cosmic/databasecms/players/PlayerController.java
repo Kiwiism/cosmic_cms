@@ -76,7 +76,7 @@ public class PlayerController {
         return game.queryForList("""
                 SELECT DISTINCT c.id, c.name, c.accountid, a.name account_name, c.world, c.level, c.job,
                        j.job_name, c.meso, c.map, m.name map_name, c.createdate, c.lastLogoutTime, a.loggedin,
-                       c.equipslots, c.useslots, c.setupslots, c.etcslots
+                       c.equipslots, c.useslots, c.setupslots, c.etcslots, c.hair, c.face, c.skincolor, c.gender
                 FROM characters c JOIN accounts a ON a.id=c.accountid
                 LEFT JOIN inventoryitems i ON i.characterid=c.id
                 LEFT JOIN cosmic_database_cms.catalog_jobs j ON j.job_id=c.job
@@ -95,7 +95,7 @@ public class PlayerController {
                 SELECT c.id, c.name, c.world, c.level, c.exp, c.job, j.job_name, c.gm, c.str, c.dex,
                        c.`int`, c.luk, c.hp, c.mp, c.maxhp, c.maxmp, c.ap, c.sp, c.meso, c.fame,
                        c.map, m.name map_name, c.guildid, c.lastLogoutTime, c.equipslots, c.useslots,
-                       c.setupslots, c.etcslots
+                       c.setupslots, c.etcslots, c.hair, c.face, c.skincolor, c.gender
                 FROM characters c
                 LEFT JOIN cosmic_database_cms.catalog_jobs j ON j.job_id=c.job
                 LEFT JOIN cosmic_database_cms.catalog_entities m ON m.entity_type='MAP' AND m.entity_id=c.map
@@ -136,17 +136,23 @@ public class PlayerController {
         lockCharacter(characterId);
         Map<String, Object> before = character(characterId);
         requireOffline(((Number) before.get("accountid")).intValue());
+        int hair = body.hair() == null ? ((Number) before.get("hair")).intValue() : body.hair();
+        int face = body.face() == null ? ((Number) before.get("face")).intValue() : body.face();
+        int skinColor = body.skinColor() == null ? ((Number) before.get("skincolor")).intValue() : body.skinColor();
+        int gender = body.gender() == null ? ((Number) before.get("gender")).intValue() : body.gender();
         game.update("""
                 UPDATE characters SET level = :level, job = :job, str = :str, dex = :dex, `int` = :int,
                     luk = :luk, hp = LEAST(:hp, :maxhp), mp = LEAST(:mp, :maxmp),
                     maxhp = :maxhp, maxmp = :maxmp, ap = :ap, meso = :meso, fame = :fame,
-                    map = :map WHERE id = :id
+                    map = :map, hair = :hair, face = :face, skincolor = :skinColor, gender = :gender WHERE id = :id
                 """, new MapSqlParameterSource()
                 .addValue("id", characterId).addValue("level", body.level()).addValue("job", body.job())
                 .addValue("str", body.str()).addValue("dex", body.dex()).addValue("int", body.intStat())
                 .addValue("luk", body.luk()).addValue("hp", body.hp()).addValue("mp", body.mp())
                 .addValue("maxhp", body.maxHp()).addValue("maxmp", body.maxMp()).addValue("ap", body.ap())
-                .addValue("meso", body.meso()).addValue("fame", body.fame()).addValue("map", body.map()));
+                .addValue("meso", body.meso()).addValue("fame", body.fame()).addValue("map", body.map())
+                .addValue("hair", hair).addValue("face", face).addValue("skinColor", skinColor)
+                .addValue("gender", gender));
         Map<String, Object> after = character(characterId);
         audit.record(principal, "CHARACTER_UPDATE", "CHARACTER", characterId, body.reason(), before, after,
                 "SAVED_OFFLINE", request);
@@ -181,7 +187,8 @@ public class PlayerController {
         requireOffline(((Number) ownerCharacter.get("accountid")).intValue());
         Map<String, Object> before = inventoryItem(inventoryItemId, characterId);
         int inventoryType = ((Number) before.get("inventorytype")).intValue();
-        if (body.itemId() / 1_000_000 != inventoryType) {
+        int itemInventoryType = itemCategoryForInventoryType(inventoryType);
+        if (body.itemId() / 1_000_000 != itemInventoryType) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "Replacement item must belong to the same inventory category");
         }
@@ -200,11 +207,11 @@ public class PlayerController {
                 WHERE inventoryitemid=:itemId AND characterid=:characterId
                 """, new MapSqlParameterSource().addValue("replacementItemId", body.itemId())
                 .addValue("position", body.position())
-                .addValue("quantity", inventoryType == 1 ? 1 : body.quantity())
+                .addValue("quantity", isEquipmentInventoryType(inventoryType) ? 1 : body.quantity())
                 .addValue("owner", body.owner()).addValue("flag", body.flag())
                 .addValue("expiration", body.expiration()).addValue("giftFrom", body.giftFrom())
                 .addValue("itemId", inventoryItemId).addValue("characterId", characterId));
-        if (inventoryType == 1 && body.equipment() != null) {
+        if (isEquipmentInventoryType(inventoryType) && body.equipment() != null) {
             game.update("""
                     UPDATE inventoryequipment SET upgradeslots=:upgradeSlots, level=:level,
                         str=:str, dex=:dex, `int`=:int, luk=:luk, hp=:hp, mp=:mp,
@@ -510,11 +517,12 @@ public class PlayerController {
         lockCharacter(characterId);
         Map<String, Object> ownerCharacter = character(characterId);
         requireOffline(((Number) ownerCharacter.get("accountid")).intValue());
-        int inventoryType = body.itemId() / 1_000_000;
-        if (inventoryType < 1 || inventoryType > 5) {
+        int itemInventoryType = body.itemId() / 1_000_000;
+        int inventoryType = body.position() < 0 && itemInventoryType == 1 ? -1 : itemInventoryType;
+        if (itemInventoryType < 1 || itemInventoryType > 5) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Item ID does not map to a valid inventory");
         }
-        if (body.position() < 1) {
+        if (body.position() == 0 || body.position() < 0 && inventoryType != -1) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Inventory position must be positive");
         }
         Integer occupied = game.queryForObject("""
@@ -543,7 +551,7 @@ public class PlayerController {
                 """, new MapSqlParameterSource()
                 .addValue("characterId", characterId).addValue("itemId", body.itemId())
                 .addValue("inventoryType", inventoryType).addValue("position", body.position())
-                .addValue("quantity", inventoryType == 1 ? 1 : body.quantity())
+                .addValue("quantity", isEquipmentInventoryType(inventoryType) ? 1 : body.quantity())
                 .addValue("owner", body.owner()).addValue("flag", body.flag())
                 .addValue("expiration", body.expiration()).addValue("giftFrom", body.giftFrom()),
                 keyHolder, new String[]{"inventoryitemid"});
@@ -552,7 +560,7 @@ public class PlayerController {
             throw new IllegalStateException("MySQL did not return the new inventory item ID");
         }
         long inventoryItemId = generated.longValue();
-        if (inventoryType == 1) {
+        if (isEquipmentInventoryType(inventoryType)) {
             EquipmentStats stats = body.equipment() == null ? EquipmentStats.empty() : body.equipment();
             insertEquipment(inventoryItemId, stats);
         }
@@ -597,6 +605,14 @@ public class PlayerController {
                     :hp, :mp, :watk, :matk, :wdef, :mdef, :acc, :avoid, :hands, :speed, :jump,
                     :locked, :vicious, :itemLevel, :itemExp, -1)
                 """, equipmentParameters(inventoryItemId, stats));
+    }
+
+    private boolean isEquipmentInventoryType(int inventoryType) {
+        return inventoryType == 1 || inventoryType == -1;
+    }
+
+    private int itemCategoryForInventoryType(int inventoryType) {
+        return inventoryType == -1 ? 1 : inventoryType;
     }
 
     private MapSqlParameterSource equipmentParameters(long inventoryItemId, EquipmentStats stats) {
@@ -689,7 +705,9 @@ public class PlayerController {
             @PositiveOrZero int dex, @PositiveOrZero int intStat, @PositiveOrZero int luk,
             @PositiveOrZero int hp, @PositiveOrZero int mp, @PositiveOrZero int maxHp,
             @PositiveOrZero int maxMp, @PositiveOrZero int ap, @PositiveOrZero int meso,
-            int fame, @PositiveOrZero int map, @NotBlank String reason) {}
+            int fame, @PositiveOrZero int map, @PositiveOrZero Integer hair,
+            @PositiveOrZero Integer face, @PositiveOrZero Integer skinColor,
+            @Min(0) @Max(1) Integer gender, @NotBlank String reason) {}
 
     public record AccountPatch(boolean banned, String banReason, boolean mute,
                                @PositiveOrZero int nxCredit, @PositiveOrZero int maplePoint,
@@ -697,7 +715,7 @@ public class PlayerController {
                                @NotBlank String reason) {}
 
     public record InventoryItemCreate(
-            @Min(1) int itemId, @Min(1) int position, @Min(1) int quantity,
+            @Min(1) int itemId, int position, @Min(1) int quantity,
             String owner, @PositiveOrZero int flag, long expiration, String giftFrom,
             EquipmentStats equipment, @NotBlank String reason) {
         public InventoryItemCreate {
@@ -706,7 +724,7 @@ public class PlayerController {
         }
     }
 
-    public record InventoryItemPatch(@Min(1) int itemId, @Min(1) int position, @Min(1) int quantity, String owner,
+    public record InventoryItemPatch(@Min(1) int itemId, int position, @Min(1) int quantity, String owner,
                                      @PositiveOrZero int flag, long expiration, String giftFrom,
                                      EquipmentStats equipment, @NotBlank String reason) {
         public InventoryItemPatch {

@@ -1,4 +1,6 @@
 /logs/**
+.env
+.env.local
 .idea/*
 !.idea/codeStyles/
 *.iml
@@ -20,6 +22,15 @@
 /server-cms/.env
 /server-cms/.runtime/
 /server-cms/*.log
+/agent-cms/**/target/
+/agent-cms/web/node_modules/
+/agent-cms/web/.next/
+/agent-cms/web/tsconfig.tsbuildinfo
+/agent-cms/web/database-cms/
+/agent-cms/.env
+/agent-cms/.env.local
+/agent-cms/.runtime/
+/agent-cms/**/*.log
 
 # build files
 /build/

@@ -81,6 +81,8 @@ public final class CharSelectedHandler extends AbstractPacketHandler {
 
         Server server = Server.getInstance();
         if (!server.haveCharacterEntry(c.getAccID(), charId)) {
+            log.warn("Rejecting character selection for account {} because character {} is not in the login registry",
+                    c.getAccID(), charId);
             SessionCoordinator.getInstance().closeSession(c, true);
             return;
         }
@@ -88,12 +90,16 @@ public final class CharSelectedHandler extends AbstractPacketHandler {
         c.setWorld(server.getCharacterWorld(charId));
         World wserv = c.getWorldServer();
         if (wserv == null || wserv.isWorldCapacityFull()) {
+            log.warn("Rejecting character selection for account {} character {} because world {} is unavailable or full",
+                    c.getAccID(), charId, c.getWorld());
             c.sendPacket(PacketCreator.getAfterLoginError(10));
             return;
         }
 
         String[] socket = server.getInetSocket(c, c.getWorld(), c.getChannel());
         if (socket == null) {
+            log.warn("Rejecting character selection for account {} character {} because no socket exists for world {} channel {}",
+                    c.getAccID(), charId, c.getWorld(), c.getChannel());
             c.sendPacket(PacketCreator.getAfterLoginError(10));
             return;
         }
@@ -103,6 +109,8 @@ public final class CharSelectedHandler extends AbstractPacketHandler {
 
         try {
             c.sendPacket(PacketCreator.getServerIP(InetAddress.getByName(socket[0]), Integer.parseInt(socket[1]), charId));
+            log.info("Sent channel endpoint {}:{} for account {} character {} world {} channel {}",
+                    socket[0], socket[1], c.getAccID(), charId, c.getWorld(), c.getChannel());
         } catch (UnknownHostException | NumberFormatException e) {
             log.warn("Failed to resolve channel endpoint {}:{} for character {}", socket[0], socket[1], charId, e);
             c.sendPacket(PacketCreator.getAfterLoginError(10));

@@ -14,7 +14,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(body?.detail ?? body?.message ?? `${response.status} ${response.statusText}`);
   }
   if (response.status === 204) return undefined as T;
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
 }
 
 export function assetUrl(type: string, id: number) {

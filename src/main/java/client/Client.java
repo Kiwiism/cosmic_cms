@@ -96,7 +96,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -113,8 +112,6 @@ public class Client extends ChannelInboundHandlerAdapter {
     private final Type type;
     private final long sessionId;
     private final PacketProcessor packetProcessor;
-    private final boolean headless;
-    private final AtomicLong headlessPacketsDropped = new AtomicLong();
 
     private Hwid hwid;
     private String remoteAddress;
@@ -162,17 +159,12 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     public Client(Type type, long sessionId, String remoteAddress, PacketProcessor packetProcessor, int world, int channel) {
-        this(type, sessionId, remoteAddress, packetProcessor, world, channel, false);
-    }
-
-    private Client(Type type, long sessionId, String remoteAddress, PacketProcessor packetProcessor, int world, int channel, boolean headless) {
         this.type = type;
         this.sessionId = sessionId;
         this.remoteAddress = remoteAddress;
         this.packetProcessor = packetProcessor;
         this.world = world;
         this.channel = channel;
-        this.headless = headless;
     }
 
     public static Client createLoginClient(long sessionId, String remoteAddress, PacketProcessor packetProcessor,
@@ -187,10 +179,6 @@ public class Client extends ChannelInboundHandlerAdapter {
 
     public static Client createMock() {
         return new Client(null, -1, null, null, -123, -123);
-    }
-
-    public static Client createHeadlessChannelClient(long sessionId, String remoteAddress, int world, int channel) {
-        return new Client(Type.CHANNEL, sessionId, remoteAddress, null, world, channel, true);
     }
 
     @Override
@@ -314,14 +302,14 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     public void closeSession() {
-        if (headless || ioChannel == null) {
+        if (ioChannel == null) {
             return;
         }
         ioChannel.close();
     }
 
     public void disconnectSession() {
-        if (headless || ioChannel == null) {
+        if (ioChannel == null) {
             return;
         }
         ioChannel.disconnect();
@@ -337,14 +325,6 @@ public class Client extends ChannelInboundHandlerAdapter {
 
     public String getRemoteAddress() {
         return remoteAddress;
-    }
-
-    public boolean isHeadless() {
-        return headless;
-    }
-
-    public long getHeadlessPacketsDropped() {
-        return headlessPacketsDropped.get();
     }
 
     public boolean isInTransition() {
@@ -1516,8 +1496,7 @@ public class Client extends ChannelInboundHandlerAdapter {
     }
 
     public void sendPacket(Packet packet) {
-        if (headless || ioChannel == null) {
-            headlessPacketsDropped.incrementAndGet();
+        if (ioChannel == null) {
             return;
         }
         announcerLock.lock();

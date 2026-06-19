@@ -12,9 +12,22 @@ import javax.sql.DataSource;
 
 @Configuration
 public class GameDatabaseConfig {
+    @Bean(name = "serverCmsDataSource")
+    @Primary
+    DriverManagerDataSource serverCmsDataSource(@Value("${spring.datasource.url}") String url,
+                                                @Value("${spring.datasource.username}") String username,
+                                                @Value("${spring.datasource.password}") String password) {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        dataSource.setUrl(url);
+        dataSource.setUsername(username);
+        dataSource.setPassword(password);
+        return dataSource;
+    }
+
     @Bean
     @Primary
-    JdbcTemplate jdbcTemplate(DataSource dataSource) {
+    JdbcTemplate jdbcTemplate(@Qualifier("serverCmsDataSource") DataSource dataSource) {
         return new JdbcTemplate(dataSource);
     }
 

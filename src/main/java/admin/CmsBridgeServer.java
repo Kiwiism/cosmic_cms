@@ -6,21 +6,18 @@ import net.server.Server;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import server.ShopFactory;
-import server.agent.AgentManagedCharacter;
-import server.agent.AgentPerceptionSnapshot;
-import server.agent.AgentPilotTickResult;
-import server.agent.AgentProfile;
-import server.agent.AgentRepository;
-import server.agent.AgentRuntimeModule;
 import server.life.MonsterInformationProvider;
-import server.runtime.RuntimeModuleManager;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.Optional;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,8 +29,8 @@ import java.util.concurrent.Executors;
  */
 public final class CmsBridgeServer {
     private static final Logger log = LoggerFactory.getLogger(CmsBridgeServer.class);
+    private static final Map<String, String> DOTENV = loadDotenv();
     private final String token;
-    private final AgentRepository agentRepository = new AgentRepository();
     private HttpServer server;
     private ExecutorService executor;
 
@@ -42,15 +39,14 @@ public final class CmsBridgeServer {
     }
 
     public static CmsBridgeServer fromEnvironment() {
-        String token = System.getenv("COSMIC_BRIDGE_TOKEN");
+        String token = env("COSMIC_BRIDGE_TOKEN");
         return token == null || token.isBlank() ? null : new CmsBridgeServer(token);
     }
 
     public void start() {
-        String host = System.getenv().getOrDefault("COSMIC_BRIDGE_HOST", "127.0.0.1");
-        int port = Integer.parseInt(System.getenv().getOrDefault("COSMIC_BRIDGE_PORT", "8787"));
+        BridgeEndpoint endpoint = bridgeEndpoint();
         try {
-            server = HttpServer.create(new InetSocketAddress(host, port), 0);
+            server = HttpServer.create(new InetSocketAddress(endpoint.host(), endpoint.port()), 0);
             executor = Executors.newVirtualThreadPerTaskExecutor();
             server.setExecutor(executor);
             server.createContext("/internal/admin/health", exchange -> handle(exchange, "GET", this::health));
@@ -58,10 +54,8 @@ public final class CmsBridgeServer {
                     exchange -> handle(exchange, "POST", this::reloadDrops));
             server.createContext("/internal/admin/cache/shops/reload",
                     exchange -> handle(exchange, "POST", this::reloadShops));
-            server.createContext("/internal/admin/agents/",
-                    exchange -> handle(exchange, "POST", this::agentAction));
             server.start();
-            log.info("CMS bridge listening on {}:{}", host, port);
+            log.info("CMS bridge listening on {}:{}", endpoint.host(), endpoint.port());
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to start CMS bridge", exception);
         }
@@ -126,97 +120,6 @@ public final class CmsBridgeServer {
         respond(exchange, 200, "{\"reloaded\":true,\"cache\":\"shops\"}");
     }
 
-    private void agentAction(HttpExchange exchange) throws IOException {
-        String path = exchange.getRequestURI().getPath();
-        String prefix = "/internal/admin/agents/";
-        String[] parts = path.substring(prefix.length()).split("/");
-        if (parts.length != 2) {
-            respond(exchange, 404, "{\"error\":\"not_found\"}");
-            return;
-        }
-
-        int profileId;
-        try {
-            profileId = Integer.parseInt(parts[0]);
-        } catch (NumberFormatException exception) {
-            respond(exchange, 400, "{\"error\":\"invalid_agent_profile_id\"}");
-            return;
-        }
-
-        String action = parts[1];
-        Optional<AgentRuntimeModule> module = RuntimeModuleManager.getInstance().findModule(AgentRuntimeModule.class);
-        if (module.isEmpty()) {
-            respond(exchange, 409, "{\"error\":\"agent_runtime_unavailable\",\"message\":\"Agent runtime module is not registered\"}");
-            return;
-        }
-
-        try {
-            Optional<AgentProfile> profile = agentRepository.findById(profileId);
-            if (profile.isEmpty()) {
-                respond(exchange, 404, "{\"error\":\"agent_not_found\"}");
-                return;
-            }
-
-            switch (action) {
-                case "prepare" -> respond(exchange, 200, prepareAgent(module.get(), profile.get()));
-                case "enter" -> respond(exchange, 200, enterAgent(module.get(), profile.get()));
-                case "release" -> respond(exchange, 200, releaseAgent(module.get(), profile.get()));
-                case "tick" -> tickAgent(exchange, module.get(), profile.get());
-                default -> respond(exchange, 404, "{\"error\":\"unknown_agent_action\"}");
-            }
-        } catch (Exception exception) {
-            log.warn("Agent bridge action {} failed for profile {}", action, profileId, exception);
-            respond(exchange, 500, "{\"error\":\"agent_action_failed\",\"message\":\"" + json(exception.getMessage()) + "\"}");
-        }
-    }
-
-    private String prepareAgent(AgentRuntimeModule module, AgentProfile profile) throws Exception {
-        Optional<AgentManagedCharacter> managed = module.spawnCoordinator().prepare(profile);
-        return agentStatusJson("prepare", managed, module);
-    }
-
-    private String enterAgent(AgentRuntimeModule module, AgentProfile profile) throws Exception {
-        Optional<AgentManagedCharacter> managed = module.spawnCoordinator().enterWorld(profile);
-        return agentStatusJson("enter", managed, module);
-    }
-
-    private String releaseAgent(AgentRuntimeModule module, AgentProfile profile) {
-        module.spawnCoordinator().release(profile, "Released through Server CMS bridge");
-        return """
-                {"action":"release","released":true,"profileId":%d,"preparedCount":%d,"enteredCount":%d}
-                """.formatted(profile.id(), module.spawnCoordinator().preparedCount(), module.spawnCoordinator().enteredCount()).trim();
-    }
-
-    private void tickAgent(HttpExchange exchange, AgentRuntimeModule module, AgentProfile profile) throws IOException, Exception {
-        Optional<AgentManagedCharacter> managed = module.spawnCoordinator().findEntered(profile.id());
-        if (managed.isEmpty()) {
-            respond(exchange, 409, "{\"error\":\"agent_not_entered\",\"message\":\"Agent must be entered before ticking\"}");
-            return;
-        }
-
-        AgentPilotTickResult result = module.pilotService().dryRunTick(managed.get());
-        String json = """
-                {"action":"tick","profileId":%d,"intent":"%s","dispatchStatus":"%s","message":"%s","preparedCount":%d,"enteredCount":%d,"perception":%s}
-                """.formatted(profile.id(), result.intent().type(), result.dispatchResult().status(),
-                json(result.message()), module.spawnCoordinator().preparedCount(), module.spawnCoordinator().enteredCount(),
-                perceptionJson(result.perception())).trim();
-        respond(exchange, 200, json);
-    }
-
-    private String agentStatusJson(String action, Optional<AgentManagedCharacter> managed, AgentRuntimeModule module) {
-        if (managed.isEmpty()) {
-            return """
-                    {"action":"%s","accepted":false,"preparedCount":%d,"enteredCount":%d}
-                    """.formatted(action, module.spawnCoordinator().preparedCount(), module.spawnCoordinator().enteredCount()).trim();
-        }
-
-        AgentManagedCharacter agent = managed.get();
-        return """
-                {"action":"%s","accepted":true,"profileId":%d,"characterId":%d,"sessionId":%d,"entered":%s,"preparedCount":%d,"enteredCount":%d}
-                """.formatted(action, agent.profileId(), agent.characterId(), agent.session().id(), agent.enteredWorld(),
-                module.spawnCoordinator().preparedCount(), module.spawnCoordinator().enteredCount()).trim();
-    }
-
     private void respond(HttpExchange exchange, int status, String json) throws IOException {
         byte[] body = json.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().set("Content-Type", "application/json; charset=utf-8");
@@ -239,65 +142,84 @@ public final class CmsBridgeServer {
                 .replace("\t", "\\t");
     }
 
-    private String perceptionJson(AgentPerceptionSnapshot perception) {
-        return "{"
-                + "\"available\":" + perception.available() + ","
-                + "\"world\":" + perception.world() + ","
-                + "\"channel\":" + perception.channel() + ","
-                + "\"mapId\":" + perception.mapId() + ","
-                + "\"position\":{\"x\":" + perception.x() + ",\"y\":" + perception.y() + "},"
-                + "\"counts\":{"
-                + "\"players\":" + perception.players() + ","
-                + "\"monsters\":" + perception.monsters() + ","
-                + "\"drops\":" + perception.drops() + ","
-                + "\"npcs\":" + perception.npcs() + ","
-                + "\"reactors\":" + perception.reactors()
-                + "},"
-                + "\"nearby\":{"
-                + "\"players\":" + visibleObjectsJson(perception.nearbyPlayers()) + ","
-                + "\"monsters\":" + visibleObjectsJson(perception.nearbyMonsters()) + ","
-                + "\"drops\":" + visibleObjectsJson(perception.nearbyDrops()) + ","
-                + "\"npcs\":" + visibleObjectsJson(perception.nearbyNpcs()) + ","
-                + "\"reactors\":" + visibleObjectsJson(perception.nearbyReactors())
-                + "}"
-                + "}";
-    }
-
-    private String visibleObjectsJson(Iterable<AgentPerceptionSnapshot.AgentVisibleObject> objects) {
-        StringBuilder builder = new StringBuilder("[");
-        boolean first = true;
-        for (AgentPerceptionSnapshot.AgentVisibleObject object : objects) {
-            if (!first) {
-                builder.append(',');
+    private static BridgeEndpoint bridgeEndpoint() {
+        String host = env("COSMIC_BRIDGE_HOST");
+        String port = env("COSMIC_BRIDGE_PORT");
+        String url = env("COSMIC_BRIDGE_URL");
+        if ((host == null || host.isBlank() || port == null || port.isBlank())
+                && url != null && !url.isBlank()) {
+            try {
+                URI uri = URI.create(url);
+                if (host == null || host.isBlank()) {
+                    host = uri.getHost();
+                }
+                if (port == null || port.isBlank()) {
+                    port = uri.getPort() > 0 ? Integer.toString(uri.getPort()) : null;
+                }
+            } catch (IllegalArgumentException ignored) {
+                // Use the default loopback endpoint when COSMIC_BRIDGE_URL is malformed.
             }
-            first = false;
-            builder.append("{")
-                    .append("\"type\":\"").append(json(object.type())).append("\",")
-                    .append("\"objectId\":").append(object.objectId()).append(',')
-                    .append("\"templateId\":").append(nullableNumber(object.templateId())).append(',')
-                    .append("\"name\":\"").append(json(object.name())).append("\",")
-                    .append("\"x\":").append(object.x()).append(',')
-                    .append("\"y\":").append(object.y()).append(',')
-                    .append("\"distanceSq\":").append(object.distanceSq()).append(',')
-                    .append("\"hp\":").append(nullableNumber(object.hp())).append(',')
-                    .append("\"maxHp\":").append(nullableNumber(object.maxHp())).append(',')
-                    .append("\"level\":").append(nullableNumber(object.level())).append(',')
-                    .append("\"quantity\":").append(nullableNumber(object.quantity())).append(',')
-                    .append("\"meso\":").append(nullableNumber(object.meso())).append(',')
-                    .append("\"alive\":").append(nullableBoolean(object.alive())).append(',')
-                    .append("\"state\":").append(nullableNumber(object.state()))
-                    .append("}");
         }
-        return builder.append(']').toString();
+
+        return new BridgeEndpoint(
+                host == null || host.isBlank() ? "127.0.0.1" : host,
+                port == null || port.isBlank() ? 8787 : Integer.parseInt(port));
     }
 
-    private String nullableNumber(Number value) {
-        return value == null ? "null" : value.toString();
+    private static String env(String name) {
+        String value = System.getenv(name);
+        if (value != null && !value.isBlank()) {
+            return value;
+        }
+        return DOTENV.get(name);
     }
 
-    private String nullableBoolean(Boolean value) {
-        return value == null ? "null" : value.toString();
+    private static Map<String, String> loadDotenv() {
+        Path path = findDotenv();
+        if (!Files.isRegularFile(path)) {
+            return Map.of();
+        }
+
+        Map<String, String> values = new HashMap<>();
+        try {
+            for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                String trimmed = line.trim();
+                if (trimmed.isBlank() || trimmed.startsWith("#")) {
+                    continue;
+                }
+
+                int separator = trimmed.indexOf('=');
+                if (separator <= 0) {
+                    continue;
+                }
+
+                String key = trimmed.substring(0, separator).trim();
+                String value = trimmed.substring(separator + 1).trim();
+                if ((value.startsWith("\"") && value.endsWith("\""))
+                        || (value.startsWith("'") && value.endsWith("'"))) {
+                    value = value.substring(1, value.length() - 1);
+                }
+                values.put(key, value);
+            }
+        } catch (IOException exception) {
+            log.warn("Unable to read .env for CMS bridge fallback", exception);
+        }
+        return Map.copyOf(values);
     }
+
+    private static Path findDotenv() {
+        Path current = Path.of("").toAbsolutePath().normalize();
+        while (current != null) {
+            Path candidate = current.resolve(".env");
+            if (Files.isRegularFile(candidate)) {
+                return candidate;
+            }
+            current = current.getParent();
+        }
+        return Path.of(".env");
+    }
+
+    private record BridgeEndpoint(String host, int port) {}
 
     @FunctionalInterface
     private interface Handler {

@@ -110,19 +110,34 @@ public class CatalogService {
                 "pages", total == null ? 0 : (total + size - 1) / size);
     }
 
-    public List<Map<String, Object>> suggest(String query, String type, String subtype, int limit) {
+    public List<Map<String, Object>> suggest(String query, String type, String subtype, int limit, Integer gender) {
         return new NamedParameterJdbcTemplate(jdbc).queryForList("""
                 SELECT entity_type, entity_id, name, description, subtype, level_value, properties_json
                 FROM catalog_entities
                 WHERE (:type = '' OR entity_type = :type)
                   AND (:subtype = '' OR subtype = :subtype)
+                  AND (:gender IS NULL OR :subtype NOT IN ('HAIR', 'FACE')
+                       OR (:subtype = 'FACE' AND (
+                           (:gender = 0 AND entity_id BETWEEN 20000 AND 20999)
+                           OR (:gender = 1 AND entity_id BETWEEN 21000 AND 21999)
+                       ))
+                       OR (:subtype = 'HAIR' AND (
+                           (:gender = 0 AND (
+                               entity_id BETWEEN 30000 AND 30999
+                               OR entity_id BETWEEN 33000 AND 33999
+                           ))
+                           OR (:gender = 1 AND (
+                               entity_id BETWEEN 31000 AND 32999
+                               OR entity_id BETWEEN 34000 AND 34999
+                           ))
+                       )))
                   AND (LOWER(name) LIKE :query OR CAST(entity_id AS CHAR) LIKE :query)
                 ORDER BY CASE WHEN CAST(entity_id AS CHAR) = :exact THEN 0
                               WHEN LOWER(name) = LOWER(:exact) THEN 1 ELSE 2 END, name
                 LIMIT :limit
                 """, new MapSqlParameterSource().addValue("type", type).addValue("subtype", subtype)
                 .addValue("query", "%" + query.toLowerCase(Locale.ROOT) + "%")
-                .addValue("exact", query).addValue("limit", limit));
+                .addValue("exact", query).addValue("limit", limit).addValue("gender", gender));
     }
 
     public Map<String, Object> detail(String type, int id) {

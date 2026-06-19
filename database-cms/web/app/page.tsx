@@ -30,6 +30,16 @@ const nav:readonly CmsNavItem<View>[] = [
 ];
 const catalogItemTypes=["EQUIP","FACE","HAIR","CONSUME","SETUP","ETC","CASH"];
 const inventoryItemTypes=["EQUIP","CONSUME","SETUP","ETC","CASH"];
+const equipSlots=[
+  [-1,"Hat"],[-2,"Face accessory"],[-3,"Eye accessory"],[-4,"Earrings"],[-5,"Top"],[-6,"Bottom"],
+  [-7,"Shoes"],[-8,"Gloves"],[-9,"Cape"],[-10,"Shield"],[-11,"Weapon"],[-12,"Ring 1"],
+  [-13,"Ring 2"],[-15,"Pendant"],[-16,"Mount"],[-17,"Saddle"],[-18,"Medal"],[-19,"Belt"]
+] as const;
+const cashEquipSlots=[
+  [-101,"Cash hat"],[-102,"Cash face"],[-103,"Cash eye"],[-104,"Cash earrings"],[-105,"Cash top"],[-106,"Cash bottom"],
+  [-107,"Cash shoes"],[-108,"Cash gloves"],[-109,"Cash cape"],[-110,"Cash shield"],[-111,"Cash weapon"],[-112,"Cash ring 1"],
+  [-113,"Cash ring 2"],[-115,"Cash pendant"],[-116,"Cash mount"],[-117,"Cash saddle"],[-118,"Cash medal"],[-119,"Cash belt"]
+] as const;
 const itemCategories:Record<string,string[]>={
   EQUIP:["All Weapons","All Armors","Hat","Accessory","Top","Overall","Bottom","Shoes","Gloves","Shield","Cape","Ring","Pet Equip","Mount","Dragon Equip",
     "One-Handed Sword","One-Handed Axe","One-Handed Mace","Dagger","Wand","Staff","Two-Handed Sword","Two-Handed Axe","Two-Handed Mace",
@@ -40,6 +50,22 @@ const itemCategories:Record<string,string[]>={
   SETUP:["Chair","Event Setup","Other Setup"],ETC:["Monster Drop","Ore","Plate / Jewel","Quest Item","Skill Book","Book","Certificate","Other Etc"],
   CASH:["Pet","Package","Effect","Store Permit","Teleport","Character Reset","Megaphone","Message","Messenger","Note","Music","Weather","Character","Safety Charm","Shop","Beauty","Emotion","Pet Consumable","Pet Name","Currency","EXP Coupon","Gachapon","Item Search","Wedding","Map Effect","Morph","Drop Coupon","Chalkboard","Other Cash"]
 };
+const skinOptions=[
+  {id:0,name:"Light"},{id:1,name:"Ashen"},{id:2,name:"Pale"},{id:3,name:"Tanned"},
+  {id:4,name:"Dark"},{id:5,name:"Green"},{id:6,name:"Blue"},{id:7,name:"Ghostly"},
+  {id:8,name:"Pink"},{id:9,name:"Purple"},{id:10,name:"White"},{id:11,name:"Clay"}
+];
+const genderOptions=[{id:0,name:"Male"},{id:1,name:"Female"}];
+
+function isEquipInventory(type:any){return Number(type)===1||Number(type)===-1}
+function inventoryCatalogSubtype(type:any){return inventoryItemTypes[(Number(type)===-1?1:Number(type))-1]||"EQUIP"}
+function characterSkinCode(skin:any){return 2000+Number(skin||0)}
+function characterAvatarUrl(character:any,items:any[]=[]){
+  const worn=items.filter(item=>Number(item.inventorytype)===-1&&Number(item.position)<0)
+    .sort((a,b)=>Number(a.position)-Number(b.position)).map(item=>item.itemid);
+  const parts=[character?.hair,character?.face,...worn].filter(Boolean).join(",");
+  return `https://maplestory.io/api/GMS/83/character/center/${characterSkinCode(character?.skincolor)}/${parts}/stand1?showears=false&resize=1`;
+}
 
 export default function App(){
   const [view,setView]=useState<View>("dashboard");
@@ -296,19 +322,25 @@ function Inventory({notify,focusCharacter,onOpen,jump,onInspectorChange}:{notify
   useEffect(()=>{if(focusCharacter)api<any[]>(`/api/characters/search?query=${focusCharacter}`).then(r=>r[0]&&setCharacter(r[0]))},[focusCharacter]);
   async function load(){if(!character)return;setItems(await api<any[]>(`/api/characters/${character.id}/inventory`));setStorage(await api<any[]>(`/api/accounts/${character.accountid}/storage?world=${character.world}`))}
   useEffect(()=>{if(character)load()},[character]);
-  async function move(item:any,position:number){await api(`/api/characters/${character.id}/inventory/${item.inventoryitemid}`,{method:"PATCH",body:JSON.stringify({...item,itemId:item.itemid,position,quantity:item.quantity||1,equipment:item.inventorytype===1?equipFrom(item):null,reason:"Moved in CMS"})});load()}
+  async function move(item:any,position:number){await api(`/api/characters/${character.id}/inventory/${item.inventoryitemid}`,{method:"PATCH",body:JSON.stringify({...item,itemId:item.itemid,position,quantity:item.quantity||1,equipment:isEquipInventory(item.inventorytype)?equipFrom(item):null,reason:"Moved in CMS"})});load()}
   async function moveOrSwap(item:any,target:any,position:number){if(target)await api(`/api/characters/${character.id}/inventory/swap`,{method:"POST",body:JSON.stringify({firstItemId:item.inventoryitemid,secondItemId:target.inventoryitemid,reason:"Swapped in CMS"})});else await move(item,position);load()}
   async function duplicate(item:any){await api(`/api/characters/${character.id}/inventory/${item.inventoryitemid}/duplicate`,{method:"POST",body:JSON.stringify({reason:"Duplicated in CMS"})});notify("Item duplicated into next empty slot");load()}
-  async function moveStorage(item:any,position:number){await api(`/api/accounts/${character.accountid}/storage/${item.inventoryitemid}`,{method:"PATCH",body:JSON.stringify({world:character.world,position,quantity:item.quantity||1,equipment:item.inventorytype===1?equipFrom(item):null,reason:"Moved in CMS"})});load()}
+  async function moveStorage(item:any,position:number){await api(`/api/accounts/${character.accountid}/storage/${item.inventoryitemid}`,{method:"PATCH",body:JSON.stringify({world:character.world,position,quantity:item.quantity||1,equipment:isEquipInventory(item.inventorytype)?equipFrom(item):null,reason:"Moved in CMS"})});load()}
   async function moveOrSwapStorage(item:any,target:any,position:number){if(target)await api(`/api/accounts/${character.accountid}/storage/swap`,{method:"POST",body:JSON.stringify({world:character.world,firstItemId:item.inventoryitemid,secondItemId:target.inventoryitemid,reason:"Swapped in CMS"})});else await moveStorage(item,position);load()}
   async function saveStorageMeso(value:number){await api(`/api/accounts/${character.accountid}/storage`,{method:"PATCH",body:JSON.stringify({world:character.world,slots:Number(storage[0]?.slots||48),meso:value,reason:"Updated storage mesos through CMS"})});notify("Storage mesos updated");load()}
   async function expandStorage(){await api(`/api/accounts/${character.accountid}/storage`,{method:"PATCH",body:JSON.stringify({world:character.world,slots:48,meso:Number(storage[0]?.meso||0),reason:"Expanded account storage to 48 slots"})});notify("Storage expanded to 48 slots");load()}
   const limits=[0,character?.equipslots||96,character?.useslots||96,character?.setupslots||96,character?.etcslots||96,96];
-  const groups=useMemo(()=>[1,2,3,4,5].map(type=>({type,items:items.filter(x=>x.inventorytype===type)})),[items]);
+  const groups=useMemo(()=>[1,2,3,4,5].map(type=>({type,items:items.filter(x=>x.inventorytype===type&&Number(x.position)>0)})),[items]);
+  const equippedItems=useMemo(()=>items.filter(x=>Number(x.inventorytype)===-1&&Number(x.position)<0&&Number(x.position)>-100),[items]);
+  const cashEquippedItems=useMemo(()=>items.filter(x=>Number(x.inventorytype)===-1&&Number(x.position)<=-100),[items]);
   return <><AutocompleteCharacter value={character} onSelect={setCharacter}/><div className="inventory-browser"><div><h3>Browse accounts</h3>{accounts.map(a=><button className={browseAccount?.id===a.id?"selected":""} key={a.id} onClick={()=>chooseAccount(a)}><UsersRound/><span><strong>{a.name}</strong><small>{a.character_count} characters</small></span></button>)}</div>
     <div><h3>{browseAccount?`${browseAccount.name}'s characters`:"Choose an account"}</h3>{accountCharacters.map(c=><button key={c.id} onClick={()=>setCharacter({...c,accountid:browseAccount.id,account_name:browseAccount.name})}><CircleUserRound/><span><strong>{browseAccount.name} → {c.name}</strong><small>Lv. {c.level} {c.job_name||"Unknown job"} ({c.job})</small></span></button>)}</div></div>
-    {character&&<div className="character-strip"><CircleUserRound/><div><strong>{character.account_name} → {character.name}</strong><span>Lv. {character.level} | {character.job_name||"Unknown job"} ({character.job}) | {character.map_name||"Unknown map"} ({character.map})</span></div><button className="secondary" onClick={()=>setEditingCharacter(true)}>Edit stats</button><button className="secondary" onClick={load}><RefreshCw size={14}/>Refresh</button></div>}
-    {character&&<>{groups.map(group=><article className="panel inventory-panel" key={group.type}><PanelTitle title={["","Equip","Use","Setup","Etc","Cash"][group.type]} subtitle="Click an item to edit. Drag onto an empty slot to move."/>
+    {character&&<div className="character-strip"><img className="character-avatar-small" src={characterAvatarUrl(character,items)} alt=""/><div><strong>{character.account_name} → {character.name}</strong><span>Lv. {character.level} | {character.job_name||"Unknown job"} ({character.job}) | {character.map_name||"Unknown map"} ({character.map})</span></div><button className="secondary" onClick={()=>setEditingCharacter(true)}>Edit stats & appearance</button><button className="secondary" onClick={load}><RefreshCw size={14}/>Refresh</button></div>}
+    {character&&<><article className="panel appearance-panel"><PanelTitle title="Appearance" subtitle="Hair, face, skin, and gender are stored directly on the character."/>
+      <div className="appearance-layout"><img className="character-avatar-large" src={characterAvatarUrl(character,items)} alt=""/><div className="appearance-grid"><div><span>Gender</span><strong>{genderName(character.gender)}</strong><small>{character.gender??"Unknown"}</small></div><div><span>Skin color</span><strong>{skinName(character.skincolor)}</strong><small>{character.skincolor??"Unknown"}</small></div><CosmeticSummary kind="HAIR" id={character.hair} label="Hair" gender={character.gender} skin={character.skincolor}/><CosmeticSummary kind="FACE" id={character.face} label="Face" gender={character.gender} skin={character.skincolor}/><button className="secondary" onClick={()=>setEditingCharacter(true)}>Edit appearance</button></div></div></article>
+      <EquipmentWindow title="Character equipment" subtitle="Equipped items use negative positions. Click a slot to add, replace, or edit the saved equipment." slots={equipSlots} items={equippedItems} setEditing={setEditing}/>
+      <EquipmentWindow title="Cash equipment" subtitle="Cash equipment uses the cash-equipped negative position range." slots={cashEquipSlots} items={cashEquippedItems} setEditing={setEditing}/>
+      {groups.map(group=><article className="panel inventory-panel" key={group.type}><PanelTitle title={["","Equip","Use","Setup","Etc","Cash"][group.type]} subtitle="Click an item to edit. Drag onto an empty slot to move."/>
       <div className="slot-grid expanded">{Array.from({length:limits[group.type]},(_,index)=>index+1).map(slot=>{const item=group.items.find(x=>x.position===slot);return <button key={slot} className={`item-slot ${item?"occupied":""}`}
         draggable={!!item} onDragStart={e=>item&&e.dataTransfer.setData("item",JSON.stringify(item))} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();const dragged=JSON.parse(e.dataTransfer.getData("item"));if(dragged.inventoryitemid!==item?.inventoryitemid)moveOrSwap(dragged,item,slot)}}
         onClick={()=>item?setEditing(item):setEditing({newItem:true,position:slot,inventorytype:group.type})} title={item?itemTooltip(item):`Empty ${slot}`}>
@@ -324,17 +356,92 @@ function Inventory({notify,focusCharacter,onOpen,jump,onInspectorChange}:{notify
     {editingCharacter&&character&&<CharacterEditor characterId={character.id} close={()=>setEditingCharacter(false)} saved={updated=>{setCharacter({...character,...updated});setEditingCharacter(false);notify("Character updated")}}/>}</>
 }
 
+function EquipmentWindow({title,subtitle,slots,items,setEditing}:{title:string;subtitle:string;slots:readonly (readonly [number,string])[];items:any[];setEditing:(x:any)=>void}){
+  return <article className="panel inventory-panel equipment-window"><PanelTitle title={title} subtitle={subtitle}/>
+    <div className="equipment-slot-grid">{slots.map(([position,label])=>{const item=items.find(x=>Number(x.position)===position);return <button key={position} className={`equip-slot ${item?"occupied":"empty"}`} onClick={()=>setEditing(item||{newItem:true,position,inventorytype:-1,slotLabel:label})} title={item?itemTooltip(item):`Empty ${label}`}>
+      <span>{label}</span><small>{position}</small>{item?<><img src={assetUrl("ITEM",item.itemid)} alt=""/><strong>{item.item_name||item.itemid}</strong></>:<em>Add equip</em>}</button>})}</div>
+  </article>
+}
+
 function CharacterEditor({characterId,close,saved}:{characterId:number;close:()=>void;saved:(x:any)=>void}){
-  const [data,setData]=useState<any>();useEffect(()=>{api(`/api/characters/${characterId}`).then(setData)},[characterId]);
+  const [data,setData]=useState<any>();const [appearance,setAppearance]=useState({gender:0,hair:0,face:0,skincolor:0});
+  const [hairEntity,setHairEntity]=useState<Entity|null>(null);const [faceEntity,setFaceEntity]=useState<Entity|null>(null);
+  useEffect(()=>{api<any>(`/api/characters/${characterId}`).then(value=>{setData(value);setAppearance({gender:Number(value.gender??0),hair:Number(value.hair||0),face:Number(value.face||0),skincolor:Number(value.skincolor||0)})})},[characterId]);
+  useEffect(()=>{if(!appearance.hair){setHairEntity(null);return}loadCatalogEntity("HAIR",appearance.hair,appearance.gender).then(setHairEntity).catch(()=>setHairEntity(null))},[appearance.hair,appearance.gender]);
+  useEffect(()=>{if(!appearance.face){setFaceEntity(null);return}loadCatalogEntity("FACE",appearance.face,appearance.gender).then(setFaceEntity).catch(()=>setFaceEntity(null))},[appearance.face,appearance.gender]);
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const value=(name:string)=>Number(f.get(name)||0);
-    const updated=await api<any>(`/api/characters/${characterId}`,{method:"PATCH",body:JSON.stringify({level:value("level"),job:value("job"),str:value("str"),dex:value("dex"),intStat:value("int"),luk:value("luk"),hp:value("hp"),mp:value("mp"),maxHp:value("maxhp"),maxMp:value("maxmp"),ap:value("ap"),meso:value("meso"),fame:value("fame"),map:value("map"),reason:String(f.get("reason"))})});saved(updated)}
+    const updated=await api<any>(`/api/characters/${characterId}`,{method:"PATCH",body:JSON.stringify({level:value("level"),job:value("job"),str:value("str"),dex:value("dex"),intStat:value("int"),luk:value("luk"),hp:value("hp"),mp:value("mp"),maxHp:value("maxhp"),maxMp:value("maxmp"),ap:value("ap"),meso:value("meso"),fame:value("fame"),map:value("map"),hair:value("hair"),face:value("face"),skinColor:value("skincolor"),gender:value("gender"),reason:String(f.get("reason"))})});saved(updated)}
   if(!data)return <div className="drawer inspector"><Loading/></div>;
   const fields=[["level","Level"],["job","Job ID"],["str","STR"],["dex","DEX"],["int","INT"],["luk","LUK"],["hp","HP"],["mp","MP"],["maxhp","Max HP"],["maxmp","Max MP"],["ap","Available AP"],["meso","Mesos"],["fame","Fame"],["map","Map ID"]];
+  const preview={...data,gender:appearance.gender,hair:appearance.hair,face:appearance.face,skincolor:appearance.skincolor};
   return <form className="drawer inspector editor-dock" onSubmit={submit}><button type="button" className="modal-close" onClick={close}><X/></button>
     <PanelTitle title={`Edit ${data.account_name} → ${data.name}`} subtitle={`${data.job_name||"Unknown job"} (${data.job}) | ${data.map_name||"Unknown map"} (${data.map}) | account must be offline`}/>
+    <section className="appearance-edit-section"><h3>Appearance</h3><p className="edit-hint">Change the character's saved cosmetic IDs. Hair and face search is restricted by the selected gender.</p>
+      <div className="character-editor-preview"><img src={characterAvatarUrl(preview)} alt=""/><span><strong>{data.name}</strong><small>{genderName(appearance.gender)} | {skinName(appearance.skincolor)} | {hairEntity?.name||"Unknown hair"} ({appearance.hair||"none"}) | {faceEntity?.name||"Unknown face"} ({appearance.face||"none"})</small></span></div>
+      <div className="cosmetic-grid"><GenderPicker name="gender" value={appearance.gender} onChange={gender=>setAppearance(current=>({...current,gender}))}/><SkinPicker name="skincolor" value={appearance.skincolor} gender={appearance.gender} hair={appearance.hair} face={appearance.face} onChange={skincolor=>setAppearance(current=>({...current,skincolor}))}/><CosmeticPicker kind="HAIR" name="hair" value={appearance.hair} label="Hair" gender={appearance.gender} skin={appearance.skincolor} onChange={hair=>setAppearance(current=>({...current,hair}))}/><CosmeticPicker kind="FACE" name="face" value={appearance.face} label="Face" gender={appearance.gender} skin={appearance.skincolor} onChange={face=>setAppearance(current=>({...current,face}))}/></div></section>
     <div className="field-grid">{fields.map(([key,label])=><label key={key}>{label}<input name={key} type="number" defaultValue={data[key]||0}/></label>)}</div>
     <label>Audit reason<textarea name="reason" required defaultValue="Edited through character manager"/></label><div className="modal-actions"><button className="primary">Save character</button></div>
   </form>
+}
+
+function skinName(value:any){
+  const current=Number(value||0);
+  const option=skinOptions.find(x=>x.id===current);
+  return option?option.name:"Unknown skin";
+}
+
+function genderName(value:any){
+  const current=Number(value||0);
+  const option=genderOptions.find(x=>x.id===current);
+  return option?option.name:"Unknown gender";
+}
+
+function cosmeticPreviewUrl(kind:"HAIR"|"FACE",id:any,gender:any,skin:any){
+  const selected=Number(id||0);
+  return selected ? `https://maplestory.io/api/GMS/83/item/${selected}/icon` : "";
+}
+
+async function loadCatalogEntity(kind:"HAIR"|"FACE",id:number,gender?:number){
+  try{return await api<Entity>(`/api/catalog/ITEM/${id}`)}
+  catch{return (await api<Entity[]>(`/api/catalog/suggest?q=${id}&type=ITEM&subtype=${kind}&limit=1${gender===undefined?"":`&gender=${Number(gender||0)}`}`))[0]||null}
+}
+
+function CosmeticSummary({kind,id,label,gender,skin}:{kind:"HAIR"|"FACE";id:any;label:string;gender:any;skin:any}){
+  const [entity,setEntity]=useState<Entity|null>(null);
+  const current=Number(id||0);
+  useEffect(()=>{if(!current){setEntity(null);return}loadCatalogEntity(kind,current,Number(gender||0)).then(setEntity).catch(()=>setEntity(null))},[kind,current,gender]);
+  return <div className="appearance-summary-item"><img src={cosmeticPreviewUrl(kind,current,gender,skin)} alt=""/><span>{label}</span><strong>{entity?.name||`Unknown ${label.toLowerCase()}`}</strong><small>{current||"Unknown"}</small></div>
+}
+
+function GenderPicker({name,value,onChange}:{name:string;value:number;onChange?:(value:number)=>void}){
+  const [current,setCurrent]=useState(Number(value||0));useEffect(()=>setCurrent(Number(value||0)),[value]);
+  function update(next:number){setCurrent(next);onChange?.(next)}
+  return <div className="cosmetic-picker gender-picker"><input type="hidden" name={name} value={current}/><div className="cosmetic-current"><img src={characterAvatarUrl({gender:current,skincolor:0,hair:current===1?31000:30000,face:current===1?21000:20000})} alt=""/><span><strong>Gender</strong><small>{genderName(current)} ({current})</small></span></div>
+    <select value={current} onChange={e=>update(Number(e.target.value))}>{genderOptions.map(gender=><option value={gender.id} key={gender.id}>{gender.name} ({gender.id})</option>)}</select>
+  </div>
+}
+
+function CosmeticPicker({kind,name,value,label,gender,skin,onChange}:{kind:"HAIR"|"FACE";name:string;value:number;label:string;gender:number;skin:number;onChange?:(value:number)=>void}){
+  const [current,setCurrent]=useState(Number(value||0));const [query,setQuery]=useState("");const [rows,setRows]=useState<Entity[]>([]);const [currentEntity,setCurrentEntity]=useState<Entity|null>(null);
+  useEffect(()=>setCurrent(Number(value||0)),[value]);
+  function update(next:number,entity?:Entity|null){setCurrent(next);if(entity!==undefined)setCurrentEntity(entity);onChange?.(next)}
+  useEffect(()=>{if(!current){setCurrentEntity(null);return}loadCatalogEntity(kind,current,Number(gender||0)).then(setCurrentEntity).catch(()=>setCurrentEntity(null))},[kind,current,gender]);
+  useEffect(()=>{if(query.trim().length<1){setRows([]);return}const t=setTimeout(()=>api<Entity[]>(`/api/catalog/suggest?q=${encodeURIComponent(query)}&type=ITEM&subtype=${kind}&gender=${Number(gender||0)}&limit=100`).then(setRows),160);return()=>clearTimeout(t)},[query,kind,gender]);
+  return <div className={`cosmetic-picker ${kind==="HAIR"?"hair-picker":"face-picker"}`}><input type="hidden" name={name} value={current}/><div className="cosmetic-current"><img src={cosmeticPreviewUrl(kind,current,gender,skin)} alt=""/><span><strong>{label}</strong><small>{currentEntity?.name||"Unknown name"} ({current})</small></span></div>
+    <SearchInput value={query} setValue={setQuery} placeholder={`Search ${label.toLowerCase()} name or ID`}/>
+    <label className="manual-id">Manual ID<input type="number" min="0" value={current} onChange={e=>update(Number(e.target.value)||0)}/></label>
+    {rows.length>0&&<div className="suggestions cosmetic-suggestions"><div className="suggestion-count">{rows.length} gender-filtered results</div>{rows.map(row=><button type="button" key={row.entity_id} onClick={()=>{update(row.entity_id,row);setRows([]);setQuery("")}}><img src={cosmeticPreviewUrl(kind,row.entity_id,gender,skin)} alt=""/><span><strong>{row.name}</strong><small>{row.entity_id}</small></span></button>)}</div>}
+  </div>
+}
+
+function SkinPicker({name,value,gender=0,hair=30000,face=20000,onChange}:{name:string;value:number;gender?:number;hair?:number;face?:number;onChange?:(value:number)=>void}){
+  const [current,setCurrent]=useState(Number(value||0));useEffect(()=>setCurrent(Number(value||0)),[value]);
+  function update(next:number){setCurrent(next);onChange?.(next)}
+  const option=skinOptions.find(x=>x.id===current)||skinOptions[0];
+  return <div className="cosmetic-picker skin-picker"><input type="hidden" name={name} value={current}/><div className="cosmetic-current"><img src={characterAvatarUrl({gender,skincolor:current,hair,face})} alt=""/><span><strong>Skin</strong><small>{option.name} ({current})</small></span></div>
+    <select value={current} onChange={e=>update(Number(e.target.value))}>{skinOptions.map(skin=><option value={skin.id} key={skin.id}>{skin.name} ({skin.id})</option>)}</select>
+    <label className="manual-id">Manual skin<input type="number" min="0" value={current} onChange={e=>update(Number(e.target.value)||0)}/></label>
+  </div>
 }
 
 function ItemEditor({item,characterId,close,saved,notify,duplicate,onOpen,jump}:{item:any;characterId:number;close:()=>void;saved:()=>void;notify:Notify;duplicate:(x:any)=>void;onOpen:(t:string,id:number)=>void;jump:(x:Jump)=>void}){
@@ -355,8 +462,8 @@ function ItemEditor({item,characterId,close,saved,notify,duplicate,onOpen,jump}:
       min={["upgradeSlots","level","locked","vicious","itemLevel","itemExp"].includes(fieldName)?"0":undefined}
       defaultValue={item[key]??(fieldName==="itemLevel"?1:0)}/></label>})}</div>;
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);
-    const equipment=item.inventorytype===1?Object.fromEntries(equipmentFields.map(([name])=>[name,Number(f.get(name)??0)])):null;
-    const payload={itemId:selected?.entity_id||item.itemid,position:Number(f.get("position")),quantity:item.inventorytype===1?1:Number(f.get("quantity")),
+    const equipment=isEquipInventory(item.inventorytype)?Object.fromEntries(equipmentFields.map(([name])=>[name,Number(f.get(name)??0)])):null;
+    const payload={itemId:selected?.entity_id||item.itemid,position:Number(f.get("position")),quantity:isEquipInventory(item.inventorytype)?1:Number(f.get("quantity")),
       owner:String(f.get("owner")??""),flag:Number(f.get("flag")??0),expiration:Number(f.get("expiration")??-1),
       giftFrom:String(f.get("giftFrom")??""),equipment,reason:String(f.get("reason"))};
     if(item.newItem){if(!selected)return;await api(`/api/characters/${characterId}/inventory`,{method:"POST",body:JSON.stringify(payload)})}
@@ -365,19 +472,19 @@ function ItemEditor({item,characterId,close,saved,notify,duplicate,onOpen,jump}:
   async function remove(){if(!confirm("Delete this item permanently?"))return;await api(`/api/characters/${characterId}/inventory/${item.inventoryitemid}?reason=Deleted%20from%20CMS`,{method:"DELETE"});saved()}
   const originalProps=metadata(original?.properties_json);
   const editSection=<section className="inventory-edit-section"><h3>{item.newItem?"New item values":"Current saved item values"}</h3>
-    <Autocomplete type="ITEM" subtype={inventoryItemTypes[item.inventorytype-1]} value={selected} onSelect={setSelected} placeholder={item.newItem?"Search compatible item":"Search to replace with another compatible item"}/>
+    <Autocomplete type="ITEM" subtype={inventoryCatalogSubtype(item.inventorytype)} value={selected} onSelect={setSelected} placeholder={item.newItem?"Search compatible item":"Search to replace with another compatible item"}/>
     {!item.newItem&&<div className="record-identifiers"><span>Inventory record <code>{item.inventoryitemid}</code></span><span>Inventory type <code>{item.inventorytype}</code></span>
-      <span>Pet link <code>{item.petid??-1}</code></span>{item.inventorytype===1&&<span>Ring link <code>{item.ringid??-1}</code></span>}</div>}
+      <span>Pet link <code>{item.petid??-1}</code></span>{isEquipInventory(item.inventorytype)&&<span>Ring link <code>{item.ringid??-1}</code></span>}</div>}
     <p className="edit-hint">Click any value below, type the replacement value, then save. Relationship IDs are shown above but remain read-only to protect linked pet and ring records.</p>
     <div className="field-grid editable-grid">
-      <label>Position<input name="position" type="number" min="1" defaultValue={item.position??1}/></label>
-      <label>Quantity<input name="quantity" type="number" min="1" disabled={item.inventorytype===1} defaultValue={item.inventorytype===1?1:item.quantity??1}/></label>
+      <label>Position<input name="position" type="number" defaultValue={item.position??1}/></label>
+      <label>Quantity<input name="quantity" type="number" min="1" disabled={isEquipInventory(item.inventorytype)} defaultValue={isEquipInventory(item.inventorytype)?1:item.quantity??1}/></label>
       <label>Owner<input name="owner" defaultValue={item.owner??""}/></label>
       <label>Item flag<input name="flag" type="number" min="0" defaultValue={item.flag??0}/></label>
       <label>Expiration timestamp<input name="expiration" type="number" defaultValue={item.expiration??-1}/></label>
       <label>Gift from<input name="giftFrom" maxLength={26} defaultValue={item.giftFrom??""}/></label>
     </div>
-    {item.inventorytype===1&&<><h3>Current equipment stats</h3><p className="edit-hint">These are the exact values stored on this equipment, not its WZ average.</p>
+    {isEquipInventory(item.inventorytype)&&<><h3>Current equipment stats</h3><p className="edit-hint">These are the exact values stored on this equipment, not its WZ average.</p>
       <div className="equipment-stat-groups editable-grid">
         {renderEquipmentGroup(["str","dex","intStat","luk"],"four")}
         {renderEquipmentGroup(["watk","matk"],"two")}
@@ -411,7 +518,7 @@ function StorageItemEditor({item,accountId,world,close,saved,notify}:{item:any;a
   const [selected,setSelected]=useState<Entity|null>(null);
   async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);
     if(item.newItem){if(!selected)return;await api(`/api/accounts/${accountId}/storage`,{method:"POST",body:JSON.stringify({world,itemId:selected.entity_id,position:item.position,quantity:Number(f.get("quantity")),equipment:null,reason:String(f.get("reason"))})})}
-    else await api(`/api/accounts/${accountId}/storage/${item.inventoryitemid}`,{method:"PATCH",body:JSON.stringify({world,position:Number(f.get("position")),quantity:Number(f.get("quantity")),equipment:item.inventorytype===1?equipFrom(item):null,reason:String(f.get("reason"))})});
+    else await api(`/api/accounts/${accountId}/storage/${item.inventoryitemid}`,{method:"PATCH",body:JSON.stringify({world,position:Number(f.get("position")),quantity:Number(f.get("quantity")),equipment:isEquipInventory(item.inventorytype)?equipFrom(item):null,reason:String(f.get("reason"))})});
     notify(item.newItem?"Storage item added":"Storage item updated");saved()}
   async function remove(){if(!confirm("Delete this storage item?"))return;await api(`/api/accounts/${accountId}/storage/${item.inventoryitemid}?world=${world}&reason=Deleted%20from%20CMS`,{method:"DELETE"});saved()}
   return <form className="drawer inspector editor-dock" onSubmit={submit}><button type="button" className="modal-close" onClick={close}><X/></button>
@@ -545,5 +652,5 @@ function wzImageNode(type:string,id:number,sourcePath:string|undefined,props:Rec
 }
 function statName(key:string){return key.replace("inc","").replace("PAD","WATK").replace("MAD","MATK").replace("PDD","WDEF").replace("MDD","MDEF").replace("MHP","HP").replace("MMP","MP")}
 function hideImage(e:any){e.currentTarget.style.visibility="hidden"}
-function itemTooltip(item:any){const lines=[item.item_name||String(item.itemid),`Quantity: ${item.quantity}`];if(item.inventorytype===1){const stats=[["Upgrade slots",item.upgradeslots],["Upgrades",item.upgrades],["STR",item.str],["DEX",item.dex],["INT",item.int],["LUK",item.luk],["HP",item.hp],["MP",item.mp],["WATK",item.watk],["MATK",item.matk],["WDEF",item.wdef],["MDEF",item.mdef],["Accuracy",item.acc],["Avoidability",item.avoid],["Hands",item.hands],["Speed",item.speed],["Jump",item.jump],["Vicious",item.vicious],["Item level",item.itemlevel],["Item EXP",item.itemexp]];for(const [name,value] of stats)if(Number(value)!==0)lines.push(`${name}: ${value}`)}return lines.join("\n")}
+function itemTooltip(item:any){const lines=[item.item_name||String(item.itemid),`Quantity: ${item.quantity}`];if(isEquipInventory(item.inventorytype)){const stats=[["Upgrade slots",item.upgradeslots],["Upgrades",item.upgrades],["STR",item.str],["DEX",item.dex],["INT",item.int],["LUK",item.luk],["HP",item.hp],["MP",item.mp],["WATK",item.watk],["MATK",item.matk],["WDEF",item.wdef],["MDEF",item.mdef],["Accuracy",item.acc],["Avoidability",item.avoid],["Hands",item.hands],["Speed",item.speed],["Jump",item.jump],["Vicious",item.vicious],["Item level",item.itemlevel],["Item EXP",item.itemexp]];for(const [name,value] of stats)if(Number(value)!==0)lines.push(`${name}: ${value}`)}return lines.join("\n")}
 function equipFrom(item:any){return {upgradeSlots:item.upgradeslots??0,level:item.upgrades??0,str:item.str??0,dex:item.dex??0,intStat:item.int??0,luk:item.luk??0,hp:item.hp??0,mp:item.mp??0,watk:item.watk??0,matk:item.matk??0,wdef:item.wdef??0,mdef:item.mdef??0,acc:item.acc??0,avoid:item.avoid??0,hands:item.hands??0,speed:item.speed??0,jump:item.jump??0,locked:item.locked??0,vicious:item.vicious??0,itemLevel:item.itemlevel??1,itemExp:item.itemexp??0}}

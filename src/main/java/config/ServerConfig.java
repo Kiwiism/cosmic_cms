@@ -35,7 +35,6 @@ public class ServerConfig {
     public int AUTOSAVE_BATCH_SIZE = 25;
     public long AUTOSAVE_CHARACTER_INTERVAL_MS = 3600000;
     public boolean USE_DIRTY_AUTOSAVE = false;
-    public boolean USE_AGENT_RUNTIME = false;
 
     //Login Configuration
     public int WORLDS;

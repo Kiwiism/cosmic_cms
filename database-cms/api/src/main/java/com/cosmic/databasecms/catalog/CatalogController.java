@@ -37,8 +37,9 @@ public class CatalogController {
     List<Map<String, Object>> suggest(@RequestParam(defaultValue = "") String q,
                                       @RequestParam(defaultValue = "") String type,
                                       @RequestParam(defaultValue = "") String subtype,
-                                      @RequestParam(defaultValue = "12") int limit) {
-        return catalog.suggest(q, type.toUpperCase(), subtype.toUpperCase(), Math.clamp(limit, 1, 30));
+                                      @RequestParam(defaultValue = "12") int limit,
+                                      @RequestParam(required = false) Integer gender) {
+        return catalog.suggest(q, type.toUpperCase(), subtype.toUpperCase(), Math.clamp(limit, 1, 100), gender);
     }
 
     @GetMapping("/{type}/{id}")

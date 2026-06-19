@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
@@ -24,6 +25,9 @@ public class AgentController {
     private final JdbcTemplate gameJdbc;
     private final ObjectMapper mapper;
     private final BridgeClient bridge;
+    private final CharacterCosmeticCatalog cosmeticCatalog;
+    private final AgentCharacterCreator characterCreator;
+    private final String gameSchema;
     private static final List<AgentCapabilityPolicy> CAPABILITY_POLICIES = List.of(
             new AgentCapabilityPolicy("intent.self.enabled", "Self timing", "Allows no-op IDLE and WAIT runtime intents.", true),
             new AgentCapabilityPolicy("intent.chat.enabled", "Chat", "Allows SAY intents to broadcast normal map chat.", false),
@@ -31,12 +35,14 @@ public class AgentController {
             new AgentCapabilityPolicy("intent.combat.enabled", "Combat", "Allows ATTACK and GRIND intents to approach and basic-attack non-boss monsters.", false),
             new AgentCapabilityPolicy("intent.loot.enabled", "Loot", "Allows nearby visible drop pickup through normal server pickup rules.", false),
             new AgentCapabilityPolicy("intent.npc.enabled", "NPC interaction", "Allows NPC/TALK intents to approach visible NPCs and record readiness. Dialog scripts are not opened yet.", false),
-            new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows SHOP/MERCHANT intents to approach visible shop NPCs. Recovery aliases can buy one affordable HP/MP recovery item through normal shop rules.", false),
+            new AgentCapabilityPolicy("intent.shop.enabled", "Shop interaction", "Allows SHOP/MERCHANT intents to approach visible shop NPCs. BUY, SELL, RECHARGE and recovery aliases use normal shop rules.", false),
             new AgentCapabilityPolicy("intent.trade.enabled", "Trade readiness", "Allows TRADE readiness checks to inspect current trade state and nearby target players without opening trade or moving items/mesos.", false),
             new AgentCapabilityPolicy("intent.party.enabled", "Party readiness", "Allows PARTY readiness checks to inspect current party and nearby target players without inviting or joining.", false),
             new AgentCapabilityPolicy("intent.inventory.enabled", "Inventory", "Allows USEITEM and EQUIP actions. Recovery aliases consume one safe HP/MP item; EQUIP uses normal WZ slot and equip validation.", false),
             new AgentCapabilityPolicy("intent.skill.enabled", "Skill readiness", "Allows SKILL/CAST readiness and safe self-buff application for no-cooldown, no-HP-cost statup skills.", false),
-            new AgentCapabilityPolicy("intent.script.enabled", "Script fallback", "Allows unknown script intents to pass the policy gate. Keep disabled unless debugging parser behavior.", false)
+            new AgentCapabilityPolicy("intent.express.enabled", "Expressive actions", "Allows facial expressions and safe expressive movement records such as F3, F7, jump, duck, and playful swing.", true),
+            new AgentCapabilityPolicy("intent.script.enabled", "Script fallback", "Allows unknown script intents to pass the policy gate. Keep disabled unless debugging parser behavior.", false),
+            new AgentCapabilityPolicy("safety.sustain.enabled", "Emergency sustain", "Allows an agent with no usable recovery item to receive a small HP/MP and meso safety top-up. Disable for strict normal-gameplay agents.", false)
     );
     private static final List<AgentCooldownPolicy> COOLDOWN_POLICIES = List.of(
             new AgentCooldownPolicy("cooldown.self.millis", "Self capability", "Default pacing for IDLE and WAIT no-op intents.", 0),
@@ -45,30 +51,44 @@ public class AgentController {
             new AgentCooldownPolicy("cooldown.combat.millis", "Combat capability", "Default pacing for attack and grind intents.", 1_000),
             new AgentCooldownPolicy("cooldown.loot.millis", "Loot capability", "Default pacing for nearby pickup attempts.", 750),
             new AgentCooldownPolicy("cooldown.npc.millis", "NPC capability", "Default pacing for NPC approach and readiness intents.", 2_000),
-            new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for shop approach and recovery purchase intents.", 2_000),
+            new AgentCooldownPolicy("cooldown.shop.millis", "Shop capability", "Default pacing for shop approach, buy, sell, recharge and recovery purchase intents.", 2_000),
             new AgentCooldownPolicy("cooldown.trade.millis", "Trade capability", "Default pacing for trade readiness checks.", 5_000),
             new AgentCooldownPolicy("cooldown.party.millis", "Party capability", "Default pacing for party readiness checks.", 3_000),
             new AgentCooldownPolicy("cooldown.inventory.millis", "Inventory capability", "Default pacing for item use and equip attempts.", 1_500),
             new AgentCooldownPolicy("cooldown.skill.millis", "Skill capability", "Default pacing for skill readiness and safe self-buff attempts.", 1_000),
+            new AgentCooldownPolicy("cooldown.express.millis", "Expressive capability", "Default pacing for facial expressions and lively idle motions.", 2_000),
             new AgentCooldownPolicy("cooldown.script.millis", "Script fallback capability", "Default pacing for unknown script intents.", 1_000),
             new AgentCooldownPolicy("cooldown.say.millis", "SAY override", "Optional override for SAY intent pacing. Falls back to chat capability when unset.", 10_000),
             new AgentCooldownPolicy("cooldown.move_to_map.millis", "MOVE_TO_MAP override", "Optional override for multi-map navigation pacing.", 1_000),
             new AgentCooldownPolicy("cooldown.follow_character.millis", "FOLLOW_CHARACTER override", "Optional override for companion/follow pacing.", 1_000),
-            new AgentCooldownPolicy("cooldown.use_portal.millis", "USE_PORTAL override", "Optional override for portal transition pacing.", 1_000)
+            new AgentCooldownPolicy("cooldown.use_portal.millis", "USE_PORTAL override", "Optional override for portal transition pacing.", 1_000),
+            new AgentCooldownPolicy("safety.sustain.min_meso", "Emergency sustain meso floor", "Minimum meso balance restored when emergency sustain is enabled.", 5_000)
     );
 
     public AgentController(JdbcTemplate cmsJdbc, @Qualifier("gameJdbc") JdbcTemplate gameJdbc, ObjectMapper mapper,
-                           BridgeClient bridge) {
+                           BridgeClient bridge, CharacterCosmeticCatalog cosmeticCatalog,
+                           AgentCharacterCreator characterCreator,
+                           @Value("${cosmic.game-database.url}") String gameDatabaseUrl) {
         this.cmsJdbc = cmsJdbc;
         this.gameJdbc = gameJdbc;
         this.mapper = mapper;
         this.bridge = bridge;
+        this.cosmeticCatalog = cosmeticCatalog;
+        this.characterCreator = characterCreator;
+        this.gameSchema = schemaFromJdbcUrl(gameDatabaseUrl, "cosmic");
     }
 
     @GetMapping
     List<Map<String, Object>> agents(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
-                SELECT p.*, c.name character_name, c.level, c.job, c.world, c.map, a.name account_name,
+        return agentQuery("""
+                SELECT p.*, c.name character_name, c.level, c.job, c.world, c.map, c.hair, c.face, c.skincolor, c.gender, a.name account_name,
+                       (
+                           SELECT GROUP_CONCAT(ii.itemid ORDER BY ii.position SEPARATOR ',')
+                           FROM inventoryitems ii
+                           WHERE ii.characterid = c.id
+                             AND ii.inventorytype = -1
+                             AND ii.position < 0
+                       ) equipped_item_ids,
                        s.state latest_state, s.current_task latest_task, s.last_tick_at
                 FROM agent_profiles p
                 JOIN characters c ON c.id = p.character_id
@@ -87,7 +107,14 @@ public class AgentController {
     @GetMapping("/{id}")
     Map<String, Object> agent(@PathVariable int id) {
         return oneGame("""
-                SELECT p.*, c.name character_name, c.level, c.job, c.world, c.map, c.spawnpoint,
+                SELECT p.*, c.name character_name, c.level, c.job, c.world, c.map, c.spawnpoint, c.hair, c.face, c.skincolor, c.gender,
+                       (
+                           SELECT GROUP_CONCAT(ii.itemid ORDER BY ii.position SEPARATOR ',')
+                           FROM inventoryitems ii
+                           WHERE ii.characterid = c.id
+                             AND ii.inventorytype = -1
+                             AND ii.position < 0
+                       ) equipped_item_ids,
                        a.id account_id, a.name account_name, a.loggedin
                 FROM agent_profiles p
                 JOIN characters c ON c.id = p.character_id
@@ -104,15 +131,14 @@ public class AgentController {
                 FROM characters c JOIN accounts a ON a.id = c.accountid
                 WHERE c.id = ?
                 """, body.characterId());
-        if (!gameJdbc.queryForList("SELECT id FROM agent_profiles WHERE character_id=?", body.characterId()).isEmpty()) {
+        if (!cmsJdbc.queryForList("SELECT id FROM agent_profiles WHERE character_id=?", body.characterId()).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This character already has an agent profile");
         }
 
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_profiles(character_id, ownership_type, owner_account_id, owner_character_id,
-                                           enabled, display_name, default_mode, behavior_profile,
-                                           personality_profile, script_name, llm_enabled)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                                           enabled, display_name, script_name, llm_enabled, deployment_channel, allowed_channels)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
                 """,
                 body.characterId(),
                 valueOr(body.ownershipType(), "SERVER"),
@@ -120,19 +146,26 @@ public class AgentController {
                 body.ownerCharacterId(),
                 Boolean.TRUE.equals(body.enabled()),
                 valueOr(body.displayName(), String.valueOf(character.get("character_name"))),
-                valueOr(body.defaultMode(), "IDLE"),
-                valueOr(body.behaviorProfile(), "default"),
-                valueOr(body.personalityProfile(), "default"),
                 body.scriptName(),
-                Boolean.TRUE.equals(body.llmEnabled()));
+                Boolean.TRUE.equals(body.llmEnabled()),
+                sanitizeDeploymentChannel(body.deploymentChannel()),
+                sanitizeAllowedChannels(body.allowedChannels(), sanitizeDeploymentChannel(body.deploymentChannel())));
 
         Map<String, Object> created = oneGame("""
-                SELECT p.*, c.name character_name, c.level, c.job, c.world, c.map, a.name account_name
+                SELECT p.*, c.name character_name, c.level, c.job, c.world, c.map, c.hair, c.face, c.skincolor, c.gender, a.name account_name,
+                       (
+                           SELECT GROUP_CONCAT(ii.itemid ORDER BY ii.position SEPARATOR ',')
+                           FROM inventoryitems ii
+                           WHERE ii.characterid = c.id
+                             AND ii.inventorytype = -1
+                             AND ii.position < 0
+                       ) equipped_item_ids
                 FROM agent_profiles p
                 JOIN characters c ON c.id = p.character_id
                 JOIN accounts a ON a.id = c.accountid
                 WHERE p.character_id=?
                 """, body.characterId());
+        seedDefaultLoadout(((Number) created.get("id")).intValue());
         audit(principal, "AGENT_PROFILE_CREATE", "agent:" + created.get("id"), null, created, "Created through Agent CMS");
         return created;
     }
@@ -140,28 +173,283 @@ public class AgentController {
     @PutMapping("/{id}")
     Map<String, Object> update(@PathVariable int id, @Valid @RequestBody UpdateAgent body, Principal principal) {
         Map<String, Object> before = agent(id);
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 UPDATE agent_profiles
-                SET enabled=?, display_name=?, default_mode=?, behavior_profile=?,
-                    personality_profile=?, script_name=?, llm_enabled=?
+                SET enabled=?, display_name=?, script_name=?, llm_enabled=?, deployment_channel=?, allowed_channels=?
                 WHERE id=?
                 """,
                 body.enabled(),
                 valueOr(body.displayName(), String.valueOf(before.get("character_name"))),
-                valueOr(body.defaultMode(), "IDLE"),
-                valueOr(body.behaviorProfile(), "default"),
-                valueOr(body.personalityProfile(), "default"),
                 body.scriptName(),
                 Boolean.TRUE.equals(body.llmEnabled()),
+                sanitizeDeploymentChannel(body.deploymentChannel()),
+                sanitizeAllowedChannels(body.allowedChannels(), sanitizeDeploymentChannel(body.deploymentChannel())),
                 id);
         Map<String, Object> after = agent(id);
         audit(principal, "AGENT_PROFILE_UPDATE", "agent:" + id, before, after, valueOr(body.reason(), "Updated through Agent CMS"));
         return after;
     }
 
+    @GetMapping("/cards")
+    List<Map<String, Object>> cards(@RequestParam(defaultValue = "") String q,
+                                    @RequestParam(defaultValue = "") String type) {
+        String normalizedType = type == null || type.isBlank() ? "%" : type.trim().toUpperCase(Locale.ROOT);
+        return agentQuery("""
+                SELECT *
+                FROM agent_cards
+                WHERE enabled = 1
+                  AND card_type LIKE ?
+                  AND (name LIKE ? OR card_key LIKE ? OR description LIKE ? OR CAST(id AS CHAR) LIKE ?)
+                ORDER BY FIELD(card_type, 'TASK', 'BEHAVIOR', 'PERSONALITY', 'POLICY', 'UTILITY'),
+                         priority DESC, name
+                LIMIT 300
+                """, normalizedType, like(q), like(q), like(q), like(q));
+    }
+
+    @GetMapping("/{id}/card-loadout")
+    Map<String, Object> cardLoadout(@PathVariable int id) {
+        Map<String, Object> profile = agent(id);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("profile", profile);
+        result.put("loadout", agentQuery("""
+                SELECT l.*, c.card_key, c.card_type, c.name, c.description, c.config_json, c.built_in
+                FROM agent_card_loadouts l
+                JOIN agent_cards c ON c.id = l.card_id
+                WHERE l.agent_profile_id = ?
+                ORDER BY l.priority DESC, l.slot_key
+                """, id));
+        return result;
+    }
+
+    @PutMapping("/{id}/card-loadout/{slotKey}")
+    Map<String, Object> saveCardLoadout(@PathVariable int id, @PathVariable String slotKey,
+                                        @Valid @RequestBody SaveCardLoadout body, Principal principal) {
+        Map<String, Object> profile = agent(id);
+        Map<String, Object> card = oneGame("""
+                SELECT id, card_key, card_type, name
+                FROM agent_cards
+                WHERE id = ? AND enabled = 1
+                """, body.cardId());
+        validateCardSlot(slotKey, String.valueOf(card.get("card_type")));
+        validateUniqueCardInSlotFamily(id, slotKey, body.cardId());
+        Map<String, Object> before = cardLoadout(id);
+        cmsJdbc.update("""
+                INSERT INTO agent_card_loadouts(agent_profile_id, slot_key, card_id, enabled, priority, override_behavior, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    card_id = VALUES(card_id),
+                    enabled = VALUES(enabled),
+                    priority = VALUES(priority),
+                    override_behavior = VALUES(override_behavior),
+                    notes = VALUES(notes)
+                """,
+                id,
+                slotKey,
+                body.cardId(),
+                !Boolean.FALSE.equals(body.enabled()),
+                body.priority() == null ? 0 : body.priority(),
+                Boolean.TRUE.equals(body.overrideBehavior()),
+                body.notes());
+        Map<String, Object> after = cardLoadout(id);
+        audit(principal, "AGENT_CARD_EQUIP", "agent:" + id + ":" + slotKey, before, after,
+                valueOr(body.reason(), "Equipped " + card.get("card_key") + " on " + profile.get("display_name")));
+        return after;
+    }
+
+    @DeleteMapping("/{id}/card-loadout/{slotKey}")
+    Map<String, Object> deleteCardLoadout(@PathVariable int id, @PathVariable String slotKey,
+                                          @RequestParam(defaultValue = "Removed through Agent CMS") String reason,
+                                          Principal principal) {
+        agent(id);
+        Map<String, Object> before = cardLoadout(id);
+        cmsJdbc.update("DELETE FROM agent_card_loadouts WHERE agent_profile_id=? AND slot_key=?", id, slotKey);
+        Map<String, Object> after = cardLoadout(id);
+        audit(principal, "AGENT_CARD_UNEQUIP", "agent:" + id + ":" + slotKey, before, after, reason);
+        return after;
+    }
+
+    @GetMapping("/{id}/task-stack")
+    Map<String, Object> taskStack(@PathVariable int id) {
+        Map<String, Object> profile = agent(id);
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("profile", profile);
+        result.put("queue", agentQuery("""
+                SELECT q.*, c.card_key, c.card_type, c.name, c.description
+                FROM agent_task_queue q
+                JOIN agent_cards c ON c.id = q.card_id
+                WHERE q.agent_profile_id = ?
+                ORDER BY CASE q.status WHEN 'ACTIVE' THEN 0 WHEN 'PENDING' THEN 1 WHEN 'COMPLETED' THEN 2 ELSE 3 END,
+                         q.queue_order, q.id
+                """, id));
+        result.put("schedules", agentQuery("""
+                SELECT s.*, c.card_key, c.card_type, c.name, c.description
+                FROM agent_task_schedules s
+                JOIN agent_cards c ON c.id = s.card_id
+                WHERE s.agent_profile_id = ?
+                ORDER BY s.enabled DESC, s.priority DESC, s.start_time, s.id
+                """, id));
+        result.put("defaults", agentQuery("""
+                SELECT d.*, c.card_key, c.card_type, c.name, c.description
+                FROM agent_task_defaults d
+                JOIN agent_cards c ON c.id = d.card_id
+                WHERE d.agent_profile_id = ?
+                ORDER BY d.enabled DESC, d.priority DESC, d.id
+                """, id));
+        return result;
+    }
+
+    @PostMapping("/{id}/task-queue")
+    Map<String, Object> addTaskQueue(@PathVariable int id, @Valid @RequestBody SaveTaskQueue body,
+                                     Principal principal) {
+        agent(id);
+        validateTaskCard(body.cardId());
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("""
+                INSERT INTO agent_task_queue(agent_profile_id, card_id, queue_order, status, run_mode,
+                                             repeat_policy, parameter_json, starts_at, expires_at, locked_reason, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                id, body.cardId(), body.queueOrder() == null ? 0 : body.queueOrder(),
+                valueOr(body.status(), "PENDING"), valueOr(body.runMode(), "FINITE"),
+                valueOr(body.repeatPolicy(), "ONCE"), body.parameterJson(), body.startsAt(), body.expiresAt(),
+                body.lockedReason(), body.notes());
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_QUEUE_ADD", "agent:" + id, before, after,
+                valueOr(body.reason(), "Added task card to agent queue"));
+        return after;
+    }
+
+    @PutMapping("/{id}/task-queue/{queueId}")
+    Map<String, Object> updateTaskQueue(@PathVariable int id, @PathVariable long queueId,
+                                        @Valid @RequestBody SaveTaskQueue body, Principal principal) {
+        agent(id);
+        validateTaskCard(body.cardId());
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("""
+                UPDATE agent_task_queue
+                SET card_id=?, queue_order=?, status=?, run_mode=?, repeat_policy=?, parameter_json=?,
+                    starts_at=?, expires_at=?, completed_at=?, locked_reason=?, notes=?
+                WHERE id=? AND agent_profile_id=?
+                """,
+                body.cardId(), body.queueOrder() == null ? 0 : body.queueOrder(),
+                valueOr(body.status(), "PENDING"), valueOr(body.runMode(), "FINITE"),
+                valueOr(body.repeatPolicy(), "ONCE"), body.parameterJson(), body.startsAt(), body.expiresAt(),
+                body.completedAt(), body.lockedReason(), body.notes(), queueId, id);
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_QUEUE_UPDATE", "agent:" + id + ":queue:" + queueId, before, after,
+                valueOr(body.reason(), "Updated queued task card"));
+        return after;
+    }
+
+    @DeleteMapping("/{id}/task-queue/{queueId}")
+    Map<String, Object> deleteTaskQueue(@PathVariable int id, @PathVariable long queueId,
+                                        @RequestParam(defaultValue = "Removed queued task through Agent CMS") String reason,
+                                        Principal principal) {
+        agent(id);
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("DELETE FROM agent_task_queue WHERE id=? AND agent_profile_id=?", queueId, id);
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_QUEUE_DELETE", "agent:" + id + ":queue:" + queueId, before, after, reason);
+        return after;
+    }
+
+    @PostMapping("/{id}/task-schedules")
+    Map<String, Object> addTaskSchedule(@PathVariable int id, @Valid @RequestBody SaveTaskSchedule body,
+                                        Principal principal) {
+        agent(id);
+        validateTaskCard(body.cardId());
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("""
+                INSERT INTO agent_task_schedules(agent_profile_id, card_id, enabled, schedule_name, days_of_week,
+                                                 start_time, end_time, starts_at, ends_at, timezone, priority,
+                                                 run_mode, repeat_policy, parameter_json, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                id, body.cardId(), !Boolean.FALSE.equals(body.enabled()),
+                valueOr(body.scheduleName(), "Scheduled task"), valueOr(body.daysOfWeek(), "ALL"),
+                body.startTime(), body.endTime(), body.startsAt(), body.endsAt(),
+                valueOr(body.timezone(), "Asia/Singapore"), body.priority() == null ? 0 : body.priority(),
+                valueOr(body.runMode(), "REUSABLE"), valueOr(body.repeatPolicy(), "LOOP"), body.parameterJson(), body.notes());
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_SCHEDULE_ADD", "agent:" + id, before, after,
+                valueOr(body.reason(), "Added scheduled task card"));
+        return after;
+    }
+
+    @PutMapping("/{id}/task-schedules/{scheduleId}")
+    Map<String, Object> updateTaskSchedule(@PathVariable int id, @PathVariable long scheduleId,
+                                           @Valid @RequestBody SaveTaskSchedule body, Principal principal) {
+        agent(id);
+        validateTaskCard(body.cardId());
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("""
+                UPDATE agent_task_schedules
+                SET card_id=?, enabled=?, schedule_name=?, days_of_week=?, start_time=?, end_time=?,
+                    starts_at=?, ends_at=?, timezone=?, priority=?, run_mode=?, repeat_policy=?, parameter_json=?, notes=?
+                WHERE id=? AND agent_profile_id=?
+                """,
+                body.cardId(), !Boolean.FALSE.equals(body.enabled()),
+                valueOr(body.scheduleName(), "Scheduled task"), valueOr(body.daysOfWeek(), "ALL"),
+                body.startTime(), body.endTime(), body.startsAt(), body.endsAt(),
+                valueOr(body.timezone(), "Asia/Singapore"), body.priority() == null ? 0 : body.priority(),
+                valueOr(body.runMode(), "REUSABLE"), valueOr(body.repeatPolicy(), "LOOP"),
+                body.parameterJson(), body.notes(), scheduleId, id);
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_SCHEDULE_UPDATE", "agent:" + id + ":schedule:" + scheduleId, before, after,
+                valueOr(body.reason(), "Updated scheduled task card"));
+        return after;
+    }
+
+    @DeleteMapping("/{id}/task-schedules/{scheduleId}")
+    Map<String, Object> deleteTaskSchedule(@PathVariable int id, @PathVariable long scheduleId,
+                                           @RequestParam(defaultValue = "Removed scheduled task through Agent CMS") String reason,
+                                           Principal principal) {
+        agent(id);
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("DELETE FROM agent_task_schedules WHERE id=? AND agent_profile_id=?", scheduleId, id);
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_SCHEDULE_DELETE", "agent:" + id + ":schedule:" + scheduleId, before, after, reason);
+        return after;
+    }
+
+    @PostMapping("/{id}/task-defaults")
+    Map<String, Object> addTaskDefault(@PathVariable int id, @Valid @RequestBody SaveTaskDefault body,
+                                       Principal principal) {
+        agent(id);
+        validateTaskCard(body.cardId());
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("""
+                INSERT INTO agent_task_defaults(agent_profile_id, card_id, enabled, priority, selection_rule,
+                                                run_mode, repeat_policy, parameter_json, notes)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE enabled=VALUES(enabled), priority=VALUES(priority),
+                    selection_rule=VALUES(selection_rule), run_mode=VALUES(run_mode),
+                    repeat_policy=VALUES(repeat_policy), parameter_json=VALUES(parameter_json), notes=VALUES(notes)
+                """,
+                id, body.cardId(), !Boolean.FALSE.equals(body.enabled()),
+                body.priority() == null ? 0 : body.priority(), valueOr(body.selectionRule(), "PRIORITY"),
+                valueOr(body.runMode(), "REUSABLE"), valueOr(body.repeatPolicy(), "LOOP"), body.parameterJson(), body.notes());
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_DEFAULT_ADD", "agent:" + id, before, after,
+                valueOr(body.reason(), "Added default task card"));
+        return after;
+    }
+
+    @DeleteMapping("/{id}/task-defaults/{defaultId}")
+    Map<String, Object> deleteTaskDefault(@PathVariable int id, @PathVariable long defaultId,
+                                          @RequestParam(defaultValue = "Removed default task through Agent CMS") String reason,
+                                          Principal principal) {
+        agent(id);
+        Map<String, Object> before = taskStack(id);
+        cmsJdbc.update("DELETE FROM agent_task_defaults WHERE id=? AND agent_profile_id=?", defaultId, id);
+        Map<String, Object> after = taskStack(id);
+        audit(principal, "AGENT_TASK_DEFAULT_DELETE", "agent:" + id + ":default:" + defaultId, before, after, reason);
+        return after;
+    }
+
     @GetMapping("/characters")
     List<Map<String, Object>> characters(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT c.id, c.name character_name, c.level, c.job, c.world, c.map,
                        a.id account_id, a.name account_name,
                        p.id agent_profile_id
@@ -174,6 +462,34 @@ public class AgentController {
                 """, like(q), like(q), like(q));
     }
 
+    @GetMapping("/character-creator/genders")
+    List<CharacterCosmeticCatalog.GenderSummary> characterCreatorGenders() {
+        return cosmeticCatalog.genders();
+    }
+
+    @GetMapping("/character-creator/worlds")
+    List<Map<String, Object>> characterCreatorWorlds() {
+        return characterCreator.worlds();
+    }
+
+    @GetMapping("/character-creator/cosmetics")
+    List<CharacterCosmeticCatalog.CosmeticOption> characterCreatorCosmetics(@RequestParam String kind,
+                                                                            @RequestParam(defaultValue = "0") int gender,
+                                                                            @RequestParam(defaultValue = "") String q,
+                                                                            @RequestParam(defaultValue = "30") int limit) {
+        return cosmeticCatalog.search(kind, gender, q, limit);
+    }
+
+    @PostMapping("/character-creator")
+    @ResponseStatus(HttpStatus.CREATED)
+    AgentCharacterCreator.CreatedAgentCharacter createAgentCharacter(@Valid @RequestBody AgentCharacterCreator.CreateAgentCharacter body,
+                                                                     Principal principal) {
+        AgentCharacterCreator.CreatedAgentCharacter created = characterCreator.create(body);
+        audit(principal, "AGENT_CHARACTER_CREATE", "character:" + created.characterId(), null, created,
+                "Created account/character through Agent CMS character creator");
+        return created;
+    }
+
     @GetMapping("/{id}/spawn-plan")
     Map<String, Object> spawnPlan(@PathVariable int id) {
         Map<String, Object> row = agent(id);
@@ -182,7 +498,9 @@ public class AgentController {
         Map<String, Object> plan = new LinkedHashMap<>();
         plan.put("ready", enabled && !accountOnline);
         plan.put("world", row.get("world"));
-        plan.put("channel", 1);
+        int deploymentChannel = numeric(row.get("deployment_channel"), 1);
+        plan.put("channel", deploymentChannel);
+        plan.put("allowedChannels", sanitizeAllowedChannels((String) row.get("allowed_channels"), deploymentChannel));
         plan.put("mapId", row.get("map"));
         plan.put("spawnPoint", row.get("spawnpoint"));
         plan.put("message", !enabled ? "Agent profile is disabled" : accountOnline ? "Account is currently logged in" : "Ready for future dormant control shell");
@@ -191,7 +509,7 @@ public class AgentController {
 
     @GetMapping("/{id}/sessions")
     List<Map<String, Object>> sessions(@PathVariable int id) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT * FROM agent_runtime_sessions
                 WHERE agent_profile_id=?
                 ORDER BY id DESC LIMIT 30
@@ -245,7 +563,7 @@ public class AgentController {
 
     @GetMapping("/{id}/logs")
     List<Map<String, Object>> logs(@PathVariable int id) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT * FROM agent_action_logs
                 WHERE agent_profile_id=?
                 ORDER BY id DESC LIMIT 100
@@ -255,7 +573,7 @@ public class AgentController {
     @GetMapping("/{id}/memory")
     List<Map<String, Object>> memory(@PathVariable int id) {
         agent(id);
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT *
                 FROM agent_memory_events
                 WHERE agent_profile_id=?
@@ -265,7 +583,7 @@ public class AgentController {
 
     @GetMapping("/scripts")
     List<Map<String, Object>> scripts(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT id, name, version, enabled, script_type, body, created_by, created_at, updated_at
                 FROM agent_scripts
                 WHERE name LIKE ? OR body LIKE ? OR CAST(id AS CHAR) LIKE ?
@@ -277,7 +595,7 @@ public class AgentController {
     @PostMapping("/scripts")
     @ResponseStatus(HttpStatus.CREATED)
     Map<String, Object> createScript(@Valid @RequestBody SaveScript body, Principal principal) {
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_scripts(name, version, enabled, script_type, body, created_by)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
@@ -343,7 +661,7 @@ public class AgentController {
                 FROM agent_scripts
                 WHERE id=?
                 """, scriptId);
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 UPDATE agent_scripts
                 SET name=?, version=?, enabled=?, script_type=?, body=?
                 WHERE id=?
@@ -367,7 +685,7 @@ public class AgentController {
     @GetMapping("/{id}/goals")
     List<Map<String, Object>> goals(@PathVariable int id) {
         agent(id);
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT *
                 FROM agent_goals
                 WHERE agent_profile_id=?
@@ -381,7 +699,7 @@ public class AgentController {
     @ResponseStatus(HttpStatus.CREATED)
     Map<String, Object> createGoal(@PathVariable int id, @Valid @RequestBody CreateGoal body, Principal principal) {
         agent(id);
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_goals(agent_profile_id, goal_type, priority, status, target_world, target_channel,
                                         target_map, target_ref, parameters_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -421,7 +739,7 @@ public class AgentController {
                 FROM agent_goals
                 WHERE id=? AND agent_profile_id=?
                 """, goalId, id);
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 UPDATE agent_goals
                 SET status=?,
                     completed_at = CASE WHEN ? IN ('COMPLETED', 'FAILED', 'CANCELLED') THEN CURRENT_TIMESTAMP ELSE completed_at END,
@@ -461,7 +779,7 @@ public class AgentController {
         before.put("key", key);
         before.put("globalValue", policyValue(0, key));
         before.put("effective", parseBoolean(policyValue(0, key), capability.defaultEnabled()));
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_policies(agent_profile_id, scope, policy_key, policy_value)
                 VALUES (0, 'GLOBAL', ?, ?)
                 ON DUPLICATE KEY UPDATE policy_value=VALUES(policy_value), scope=VALUES(scope)
@@ -486,7 +804,7 @@ public class AgentController {
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("key", key);
         before.put("globalValue", policyValue(0, key));
-        gameJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=0 AND policy_key=?", key);
+        cmsJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=0 AND policy_key=?", key);
         Map<String, Object> after = globalPolicies().stream()
                 .filter(row -> key.equals(row.get("key")))
                 .findFirst()
@@ -530,7 +848,7 @@ public class AgentController {
         before.put("key", key);
         before.put("agentValue", previousAgentValue);
         before.put("effective", parseBoolean(previousAgentValue, capability.defaultEnabled()));
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_policies(agent_profile_id, scope, policy_key, policy_value)
                 VALUES (?, 'AGENT', ?, ?)
                 ON DUPLICATE KEY UPDATE policy_value=VALUES(policy_value)
@@ -556,7 +874,7 @@ public class AgentController {
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("key", key);
         before.put("agentValue", policyValue(id, key));
-        gameJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=? AND policy_key=?", id, key);
+        cmsJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=? AND policy_key=?", id, key);
         Map<String, Object> after = policies(id).stream()
                 .filter(row -> key.equals(row.get("key")))
                 .findFirst()
@@ -591,7 +909,7 @@ public class AgentController {
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("key", key);
         before.put("globalValue", policyValue(0, key));
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_policies(agent_profile_id, scope, policy_key, policy_value)
                 VALUES (0, 'GLOBAL', ?, ?)
                 ON DUPLICATE KEY UPDATE policy_value=VALUES(policy_value), scope=VALUES(scope)
@@ -616,7 +934,7 @@ public class AgentController {
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("key", key);
         before.put("globalValue", policyValue(0, key));
-        gameJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=0 AND policy_key=?", key);
+        cmsJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=0 AND policy_key=?", key);
         Map<String, Object> after = globalCooldowns().stream()
                 .filter(row -> key.equals(row.get("key")))
                 .findFirst()
@@ -662,7 +980,7 @@ public class AgentController {
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("key", key);
         before.put("agentValue", policyValue(id, key));
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_policies(agent_profile_id, scope, policy_key, policy_value)
                 VALUES (?, 'AGENT', ?, ?)
                 ON DUPLICATE KEY UPDATE policy_value=VALUES(policy_value)
@@ -688,7 +1006,7 @@ public class AgentController {
         Map<String, Object> before = new LinkedHashMap<>();
         before.put("key", key);
         before.put("agentValue", policyValue(id, key));
-        gameJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=? AND policy_key=?", id, key);
+        cmsJdbc.update("DELETE FROM agent_policies WHERE agent_profile_id=? AND policy_key=?", id, key);
         Map<String, Object> after = cooldowns(id).stream()
                 .filter(row -> key.equals(row.get("key")))
                 .findFirst()
@@ -740,7 +1058,7 @@ public class AgentController {
 
     @GetMapping("/runtime/sessions")
     List<Map<String, Object>> runtimeSessions(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT s.*, p.display_name, c.name character_name, a.name account_name,
                        TIMESTAMPDIFF(SECOND, COALESCE(s.last_tick_at, s.started_at), NOW()) AS seconds_since_tick,
                        safety.summary AS latest_safety_summary,
@@ -778,7 +1096,7 @@ public class AgentController {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Runtime session is already closed");
         }
 
-        int updated = gameJdbc.update("""
+        int updated = cmsJdbc.update("""
                 UPDATE agent_runtime_sessions
                 SET state='STOPPED',
                     current_task='Stopped stale session through Agent CMS',
@@ -856,7 +1174,7 @@ public class AgentController {
                 FROM agent_economy_ledger
                 WHERE created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
                 """));
-        summary.put("latestProblems", gameJdbc.queryForList("""
+        summary.put("latestProblems", agentQuery("""
                 SELECT l.*, p.display_name, c.name character_name
                 FROM agent_action_logs l
                 JOIN agent_profiles p ON p.id = l.agent_profile_id
@@ -865,7 +1183,7 @@ public class AgentController {
                 ORDER BY l.id DESC
                 LIMIT 10
                 """));
-        summary.put("latestSafety", gameJdbc.queryForList("""
+        summary.put("latestSafety", agentQuery("""
                 SELECT m.*, p.display_name, c.name character_name
                 FROM agent_memory_events m
                 JOIN agent_profiles p ON p.id = m.agent_profile_id
@@ -879,7 +1197,7 @@ public class AgentController {
 
     @GetMapping("/social/relationships")
     List<Map<String, Object>> relationships(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT r.*, p.display_name, c.name agent_character_name,
                        rc.name related_character_name, ra.name related_account_name
                 FROM agent_relationships r
@@ -896,7 +1214,7 @@ public class AgentController {
 
     @GetMapping("/social/chat")
     List<Map<String, Object>> chatLogs(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT l.*, p.display_name, c.name agent_character_name,
                        sender.name sender_name, recipient.name recipient_name
                 FROM agent_chat_logs l
@@ -913,7 +1231,7 @@ public class AgentController {
 
     @GetMapping("/social/proximity")
     List<Map<String, Object>> proximity(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT m.*, p.display_name, c.name agent_character_name, c.world, c.map
                 FROM agent_memory_events m
                 JOIN agent_profiles p ON p.id = m.agent_profile_id
@@ -928,7 +1246,7 @@ public class AgentController {
 
     @GetMapping("/economy/ledger")
     List<Map<String, Object>> economyLedger(@RequestParam(defaultValue = "") String q) {
-        return gameJdbc.queryForList("""
+        return agentQuery("""
                 SELECT e.*, p.display_name, c.name agent_character_name, counterparty.name counterparty_name
                 FROM agent_economy_ledger e
                 JOIN agent_profiles p ON p.id = e.agent_profile_id
@@ -943,7 +1261,7 @@ public class AgentController {
     }
 
     private Map<String, Object> oneGame(String sql, Object... args) {
-        List<Map<String, Object>> rows = gameJdbc.queryForList(sql, args);
+        List<Map<String, Object>> rows = agentQuery(sql, args);
         if (rows.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Agent record not found");
         }
@@ -951,13 +1269,48 @@ public class AgentController {
     }
 
     private Map<String, Object> optionalGame(String sql, Object... args) {
-        List<Map<String, Object>> rows = gameJdbc.queryForList(sql, args);
+        List<Map<String, Object>> rows = agentQuery(sql, args);
         return rows.isEmpty() ? null : rows.getFirst();
     }
 
     private Map<String, Object> oneSummary(String sql) {
-        List<Map<String, Object>> rows = gameJdbc.queryForList(sql);
+        List<Map<String, Object>> rows = agentQuery(sql);
         return rows.isEmpty() ? Map.of() : rows.getFirst();
+    }
+
+    private List<Map<String, Object>> agentQuery(String sql, Object... args) {
+        return cmsJdbc.queryForList(qualifyGameTables(sql), args);
+    }
+
+    private String qualifyGameTables(String sql) {
+        String qualified = sql;
+        for (String table : List.of("characters", "accounts", "inventoryitems")) {
+            qualified = qualified.replaceAll("(?i)\\b(FROM|JOIN|LEFT\\s+JOIN)\\s+" + table + "\\b",
+                    "$1 " + gameTable(table));
+        }
+        return qualified;
+    }
+
+    private String gameTable(String table) {
+        return quoteIdentifier(gameSchema) + "." + quoteIdentifier(table);
+    }
+
+    private String quoteIdentifier(String identifier) {
+        return "`" + identifier.replace("`", "``") + "`";
+    }
+
+    private String schemaFromJdbcUrl(String jdbcUrl, String fallback) {
+        if (jdbcUrl == null || jdbcUrl.isBlank()) {
+            return fallback;
+        }
+        int scheme = jdbcUrl.indexOf("://");
+        int start = jdbcUrl.indexOf('/', scheme < 0 ? 0 : scheme + 3);
+        if (start < 0 || start + 1 >= jdbcUrl.length()) {
+            return fallback;
+        }
+        int end = jdbcUrl.indexOf('?', start + 1);
+        String schema = (end < 0 ? jdbcUrl.substring(start + 1) : jdbcUrl.substring(start + 1, end)).trim();
+        return schema.isBlank() ? fallback : schema;
     }
 
     private String like(String value) {
@@ -968,8 +1321,132 @@ public class AgentController {
         return value == null || value.isBlank() ? fallback : value;
     }
 
+    private int numeric(Object value, int fallback) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value == null) {
+            return fallback;
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private int sanitizeDeploymentChannel(Integer value) {
+        if (value == null) {
+            return 1;
+        }
+        return Math.max(1, Math.min(20, value));
+    }
+
+    private String sanitizeAllowedChannels(String raw, int deploymentChannel) {
+        List<Integer> channels = new ArrayList<>();
+        if (raw != null) {
+            for (String part : raw.split(",")) {
+                try {
+                    int channel = Integer.parseInt(part.trim());
+                    if (channel >= 1 && channel <= 20 && !channels.contains(channel)) {
+                        channels.add(channel);
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Ignore malformed checkbox values and keep the policy valid.
+                }
+            }
+        }
+        if (!channels.contains(deploymentChannel)) {
+            channels.add(deploymentChannel);
+        }
+        channels.sort(Integer::compareTo);
+        return channels.stream().map(String::valueOf).reduce((left, right) -> left + "," + right).orElse("1");
+    }
+
+    private void validateCardSlot(String slotKey, String cardType) {
+        String normalizedSlot = slotKey == null ? "" : slotKey.trim().toLowerCase(Locale.ROOT);
+        String normalizedType = cardType == null ? "" : cardType.trim().toUpperCase(Locale.ROOT);
+        boolean valid = normalizedSlot.startsWith("active_task") && "TASK".equals(normalizedType)
+                || normalizedSlot.startsWith("default_behavior") && "BEHAVIOR".equals(normalizedType)
+                || normalizedSlot.startsWith("task_override_behavior") && "BEHAVIOR".equals(normalizedType)
+                || normalizedSlot.startsWith("personality") && "PERSONALITY".equals(normalizedType)
+                || normalizedSlot.startsWith("safety") && List.of("POLICY", "UTILITY", "BEHAVIOR").contains(normalizedType)
+                || normalizedSlot.startsWith("passive") && List.of("UTILITY", "BEHAVIOR", "PERSONALITY").contains(normalizedType);
+        if (!valid) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Card type " + normalizedType + " cannot be equipped into slot " + slotKey);
+        }
+    }
+
+    private void validateUniqueCardInSlotFamily(int agentProfileId, String slotKey, long cardId) {
+        String family = numberedSlotFamily(slotKey);
+        if (family == null) {
+            return;
+        }
+        Integer duplicateCount = cmsJdbc.queryForObject("""
+                SELECT COUNT(*)
+                FROM agent_card_loadouts
+                WHERE agent_profile_id = ?
+                  AND card_id = ?
+                  AND slot_key <> ?
+                  AND slot_key REGEXP ?
+                """, Integer.class, agentProfileId, cardId, slotKey, "^" + family + "_[0-9]+$");
+        if (duplicateCount != null && duplicateCount > 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "This card is already equipped in another " + family + " slot");
+        }
+    }
+
+    private String numberedSlotFamily(String slotKey) {
+        if (slotKey == null) {
+            return null;
+        }
+        String normalized = slotKey.trim().toLowerCase(Locale.ROOT);
+        int suffix = normalized.lastIndexOf('_');
+        if (suffix < 0 || suffix + 1 >= normalized.length()) {
+            return null;
+        }
+        String tail = normalized.substring(suffix + 1);
+        if (!tail.chars().allMatch(Character::isDigit)) {
+            return null;
+        }
+        return normalized.substring(0, suffix);
+    }
+
+    private void validateTaskCard(long cardId) {
+        Map<String, Object> card = oneGame("""
+                SELECT id, card_type
+                FROM agent_cards
+                WHERE id = ? AND enabled = 1
+                """, cardId);
+        if (!"TASK".equals(String.valueOf(card.get("card_type")))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only TASK cards can be assigned as active tasks");
+        }
+    }
+
+    private void seedDefaultLoadout(int agentProfileId) {
+        cmsJdbc.update("""
+                INSERT IGNORE INTO agent_card_loadouts(agent_profile_id, slot_key, card_id, enabled, priority, notes)
+                SELECT ?, 'active_task', c.id, 1, 100, 'Default active task equipped when agent profile was created'
+                FROM agent_cards c
+                WHERE c.card_key = 'task.mapleisland_complete_all_quests'
+                """, agentProfileId);
+        cmsJdbc.update("""
+                INSERT IGNORE INTO agent_card_loadouts(agent_profile_id, slot_key, card_id, enabled, priority, notes)
+                SELECT ?, 'task_override_behavior_1', c.id, 1, 60, 'Default Maple Island task behavior equipped when agent profile was created'
+                FROM agent_cards c
+                WHERE c.card_key = 'behavior.mapleisland_quester'
+                """, agentProfileId);
+        cmsJdbc.update("""
+                INSERT IGNORE INTO agent_card_loadouts(agent_profile_id, slot_key, card_id, enabled, priority, notes)
+                SELECT ?, 'personality_1', c.id, 1, 0, 'Default personality equipped when agent profile was created'
+                FROM agent_cards c
+                WHERE c.card_key = 'personality.default'
+                """, agentProfileId);
+    }
+
     private String policyValue(int agentProfileId, String key) {
-        List<String> rows = gameJdbc.queryForList("""
+        List<String> rows = cmsJdbc.queryForList("""
                 SELECT policy_value FROM agent_policies
                 WHERE agent_profile_id=? AND policy_key=?
                 ORDER BY id DESC LIMIT 1
@@ -1155,7 +1632,7 @@ public class AgentController {
             return;
         }
 
-        gameJdbc.update("""
+        cmsJdbc.update("""
                 INSERT INTO agent_relationships(agent_profile_id, related_character_id, relationship_type,
                                                 trust_score, affinity_score, notes)
                 VALUES (?, ?, 'COMPANION', 0, 5, ?)
@@ -1194,11 +1671,25 @@ public class AgentController {
     }
 
     record CreateAgent(@NotNull Integer characterId, String ownershipType, Integer ownerAccountId,
-                       Integer ownerCharacterId, Boolean enabled, String displayName, String defaultMode,
-                       String behaviorProfile, String personalityProfile, String scriptName, Boolean llmEnabled) {}
+                       Integer ownerCharacterId, Boolean enabled, String displayName, String scriptName,
+                       Boolean llmEnabled, Integer deploymentChannel, String allowedChannels) {}
 
-    record UpdateAgent(Boolean enabled, String displayName, String defaultMode, String behaviorProfile,
-                       String personalityProfile, String scriptName, Boolean llmEnabled, String reason) {}
+    record UpdateAgent(Boolean enabled, String displayName, String scriptName, Boolean llmEnabled,
+                       Integer deploymentChannel, String allowedChannels, String reason) {}
+
+    record SaveCardLoadout(@NotNull Long cardId, Boolean enabled, Integer priority, Boolean overrideBehavior,
+                           String notes, String reason) {}
+
+    record SaveTaskQueue(@NotNull Long cardId, Integer queueOrder, String status, String runMode,
+                         String repeatPolicy, String parameterJson, String startsAt, String expiresAt, String completedAt,
+                         String lockedReason, String notes, String reason) {}
+
+    record SaveTaskSchedule(@NotNull Long cardId, Boolean enabled, String scheduleName, String daysOfWeek,
+                             String startTime, String endTime, String startsAt, String endsAt, String timezone,
+                             Integer priority, String runMode, String repeatPolicy, String parameterJson, String notes, String reason) {}
+
+    record SaveTaskDefault(@NotNull Long cardId, Boolean enabled, Integer priority, String selectionRule,
+                           String runMode, String repeatPolicy, String parameterJson, String notes, String reason) {}
 
     record UpdatePolicy(Boolean enabled, String reason) {}
 

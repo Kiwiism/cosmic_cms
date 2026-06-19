@@ -71,3 +71,4 @@ public final class GeneralChatHandler extends AbstractPacketHandler {
         }
     }
 }
+

@@ -42,8 +42,21 @@ if ($LASTEXITCODE -ne 0) {
     throw "Agent CMS API build failed."
 }
 
+$javaArgs = @(
+    "-Dspring.datasource.url=$env:AGENT_CMS_DB_URL",
+    "-Dspring.datasource.username=$env:AGENT_CMS_DB_USER",
+    "-Dspring.datasource.password=$env:AGENT_CMS_DB_PASSWORD",
+    "-Dcosmic.game-database.url=$env:COSMIC_DB_URL",
+    "-Dcosmic.game-database.username=$env:COSMIC_DB_USER",
+    "-Dcosmic.game-database.password=$env:COSMIC_DB_PASSWORD",
+    "-Dcosmic.bridge.url=$env:COSMIC_BRIDGE_URL",
+    "-Dcosmic.bridge.token=$env:COSMIC_BRIDGE_TOKEN",
+    "-Dcosmic.allowed-origin=$env:AGENT_CMS_ALLOWED_ORIGIN",
+    "-jar",
+    (Join-Path $api "target\cosmic-agent-cms-api-0.1.0-SNAPSHOT.jar")
+)
 $apiProcess = Start-Process -FilePath "java" -WindowStyle Hidden -WorkingDirectory $api -PassThru `
-    -ArgumentList "-jar", (Join-Path $api "target\cosmic-agent-cms-api-0.1.0-SNAPSHOT.jar") `
+    -ArgumentList $javaArgs `
     -RedirectStandardOutput (Join-Path $runtime "api.log") `
     -RedirectStandardError (Join-Path $runtime "api-error.log")
 $webProcess = Start-Process -FilePath $nodeExecutable -WindowStyle Hidden -WorkingDirectory $web -PassThru `

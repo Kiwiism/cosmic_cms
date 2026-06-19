@@ -8,6 +8,7 @@ if (Test-Path $envFile) {
         if ($line -and -not $line.StartsWith("#")) {
             $name, $value = $line -split "=", 2
             [Environment]::SetEnvironmentVariable($name.Trim(), $value.Trim(), "Process")
+            Set-Item -Path ("Env:" + $name.Trim()) -Value $value.Trim()
         }
     }
 }
@@ -32,13 +33,21 @@ if (-not (Test-Path -LiteralPath $next)) {
     throw "Server CMS web dependencies are missing. Install them in server-cms/web first."
 }
 
+$datasourceArgs = @(
+    "--spring.datasource.url=$env:SERVER_CMS_DB_URL",
+    "--spring.datasource.username=$env:SERVER_CMS_DB_USER",
+    "--spring.datasource.password=$env:SERVER_CMS_DB_PASSWORD",
+    "--server.port=$env:SERVER_CMS_API_PORT"
+)
+$apiArguments = @("-jar", (Join-Path $api "target\cosmic-server-cms-api-0.1.0-SNAPSHOT.jar")) + $datasourceArgs
+
 & (Join-Path $root "mvnw.cmd") -q -f (Join-Path $api "pom.xml") package
 if ($LASTEXITCODE -ne 0) {
     throw "Server CMS API build failed."
 }
 
 $apiProcess = Start-Process -FilePath "java" -WindowStyle Hidden -WorkingDirectory $api -PassThru `
-    -ArgumentList "-jar", (Join-Path $api "target\cosmic-server-cms-api-0.1.0-SNAPSHOT.jar") `
+    -ArgumentList $apiArguments `
     -RedirectStandardOutput (Join-Path $runtime "api.log") `
     -RedirectStandardError (Join-Path $runtime "api-error.log")
 $webProcess = Start-Process -FilePath $nodeExecutable -WindowStyle Hidden -WorkingDirectory $web -PassThru `

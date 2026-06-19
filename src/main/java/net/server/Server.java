@@ -67,7 +67,6 @@ import net.server.world.World;
 import org.apache.logging.log4j.LogManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import server.agent.AgentRuntimeModule;
 import server.CashShop.CashItemFactory;
 import server.SkillbookInformationProvider;
 import server.ThreadManager;
@@ -871,12 +870,6 @@ public class Server {
         return rankSystem;
     }
 
-    private void registerRuntimeModules() {
-        if (YamlConfig.config.server.USE_AGENT_RUNTIME) {
-            RuntimeModuleManager.getInstance().register(new AgentRuntimeModule());
-        }
-    }
-
     public void init() {
         Instant beforeInit = Instant.now();
         log.info("Cosmic v{} starting up.", ServerConstants.VERSION);
@@ -893,7 +886,6 @@ public class Server {
         CommandPolicyOverrides.load();
 
         DatabaseMigrations.runDatabaseMigrations();
-        registerRuntimeModules();
         RuntimeModuleManager.getInstance().start(this);
 
         channelDependencies = registerChannelDependencies();
@@ -1396,7 +1388,22 @@ public class Server {
         lgnRLock.lock();
         try {
             Set<Integer> accChars = accountChars.get(accountid);
-            return accChars.contains(chrid);
+            if (accChars != null && accChars.contains(chrid)) {
+                return true;
+            }
+        } finally {
+            lgnRLock.unlock();
+        }
+
+        // CMS tools can create characters directly in the database while the
+        // server is already online. Refresh this account once before rejecting
+        // the channel transition so the login cache stays in sync with DB state.
+        loadAccountCharactersView(accountid, 0, 0);
+
+        lgnRLock.lock();
+        try {
+            Set<Integer> accChars = accountChars.get(accountid);
+            return accChars != null && accChars.contains(chrid);
         } finally {
             lgnRLock.unlock();
         }

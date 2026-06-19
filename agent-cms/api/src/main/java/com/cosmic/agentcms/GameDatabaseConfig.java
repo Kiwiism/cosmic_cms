@@ -14,7 +14,20 @@ import javax.sql.DataSource;
 public class GameDatabaseConfig {
     @Bean
     @Primary
-    JdbcTemplate jdbcTemplate(DataSource dataSource) {
+    DriverManagerDataSource agentDataSource(@Value("${spring.datasource.url}") String url,
+                                            @Value("${spring.datasource.username}") String username,
+                                            @Value("${spring.datasource.password}") String password) {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setDriverClassName("com.mysql.cj.jdbc.Driver");
+        dataSource.setUrl(url);
+        dataSource.setUsername(username);
+        dataSource.setPassword(password);
+        return dataSource;
+    }
+
+    @Bean
+    @Primary
+    JdbcTemplate jdbcTemplate(@Qualifier("agentDataSource") DataSource dataSource) {
         return new JdbcTemplate(dataSource);
     }
 

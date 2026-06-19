@@ -54,6 +54,7 @@ export function CmsShell<T extends string>({
           {navigation.map(({ key, label, icon: Icon }) => (
             <button
               type="button"
+              aria-label={label}
               className={activeView === key ? "active" : ""}
               key={key}
               onClick={() => onNavigate(key)}

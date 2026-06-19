@@ -8,8 +8,7 @@
     <include file="changelog-tables.xml" relativeToChangelogFile="true"/>
     <include file="changelog-data.xml" relativeToChangelogFile="true"/>
 
-    <!-- If you have any additional changesets you would like to run at the end, create an "extensions" directory and put them in there. -->
-    <!-- All changesets will run in alphanumeric order based on their filename. Read Liquibase documentation on "includeAll" for more info. -->
-    <includeAll path="extensions" relativeToChangelogFile="true" errorIfMissingOrEmpty="false"/>
+    <!-- Game-schema extensions only. Agent runtime/CMS tables live in the separate cosmic_agent_cms database. -->
+    <include file="extensions/2026-06-13-storage-48.xml" relativeToChangelogFile="true"/>
 
 </databaseChangeLog>

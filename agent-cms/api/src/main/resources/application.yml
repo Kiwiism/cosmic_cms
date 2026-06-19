@@ -15,4 +15,5 @@ cosmic:
   bridge:
     url: ${COSMIC_BRIDGE_URL:http://127.0.0.1:8787}
     token: ${COSMIC_BRIDGE_TOKEN:}
+  wz-path: ${COSMIC_WZ_PATH:../../wz}
   allowed-origin: ${AGENT_CMS_ALLOWED_ORIGIN:http://localhost:3002}
